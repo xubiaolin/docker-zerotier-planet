@@ -1,6 +1,6 @@
 FROM centos:7
 
-WORKDIR /var/lib/zerotier-one/
+WORKDIR /opt/ztncui/src
 COPY . /var/lib/zerotier-one/
 VOLUME ["/opt","/var/lib/zerotier-one"]
 EXPOSE 9993
@@ -23,6 +23,17 @@ RUN curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Ce
     zerotier-idtool generate identity.public identity.secret &&\
     zerotier-idtool initmoon identity.public >> moon.json &&\
 
+    #配置ztncui
+    cd /opt &&\
+    curl -sL https://rpm.nodesource.com/setup_10.x |  bash - &&\
+    yum install nodejs -y &&\
+    git clone https://github.com.cnpmjs.org/key-networks/ztncui.git &&\
+    cd ztncui/src&&\
+    npm install -g node-gyp &&\
+    npm install
+    sh -c "echo 'HTTP_PORT=3443' > .env"
+    sh -c "echo 'NODE_ENV=production' >> .env"
+
     # 配置补丁
     cd /var/lib/zerotier-one && \
     python3 patch.py && \
@@ -35,7 +46,7 @@ RUN curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Ce
     sh build.sh &&\
     mv world.bin /var/lib/zerotier-one/planet
 
-CMD [ "bash","run.sh" ]
+CMD [ "bash","npm start" ]
 
 
 
