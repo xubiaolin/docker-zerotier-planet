@@ -35,7 +35,7 @@ RUN curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Ce
     sh build.sh &&\
     mv world.bin /var/lib/zerotier-one/planet
 
-CMD [ "bash","run.sh" ]
+CMD [ "bash","/var/lib/zerotier-one/run.sh" ]
 
 
 
