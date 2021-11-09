@@ -1,6 +1,6 @@
 FROM centos:7
 
-WORKDIR /opt
+WORKDIR /var/lib/zerotier-one/
 COPY . /var/lib/zerotier-one/
 VOLUME ["/opt","/var/lib/zerotier-one"]
 EXPOSE 9993
@@ -35,7 +35,7 @@ RUN curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Ce
     sh build.sh &&\
     mv world.bin /var/lib/zerotier-one/planet
 
-CMD [ "bash","/var/lib/zerotier-one/run.sh" ]
+CMD [ "bash","run.sh" ]
 
 
 
