@@ -15,6 +15,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     # 安装ztncui
     cd /opt && git clone https://github.com.cnpmjs.org/key-networks/ztncui.git  &&\
     cd ztncui/src && npm install -g node-gyp && npm install &&\
+    cp -pv ./etc/default.passwd ./etc/passwd &&\
     echo 'HTTP_PORT=3443' > .env&&\
     echo 'NODE_ENV=production' >> .env &&\
     echo 'HTTP_ALL_INTERFACES=true' >> .env &&\
