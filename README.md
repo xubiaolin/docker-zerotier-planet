@@ -11,7 +11,7 @@ zerotier是一个非常好用的私有组网的软件,但是官方提供的服�
 # 开始
 ## 1.下载项目源码
 ```
-git clone 
+git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 ```
 ## 2.修改项目中的patch/patch.json
 
