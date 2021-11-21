@@ -44,7 +44,7 @@ docker run -d --name zerotier-planet -p 3443:3443 -p 9993:9993 -p 9993:9993/udp 
 
 进入后创建一个网络，可以得到一个网络ID
 
-# 客户端配置
+# 客户端配置[可选](可以直接通过官方的app连接到上面的网络id)
 首先将服务器/var/lib/zerotier-one 目录下的planet文件下载到本地以备用
 
 ## linux 客户端配置
