@@ -5,7 +5,7 @@ zerotier是一个非常好用的私有组网的软件,但是官方提供的服�
 
 
 # 准备条件
-- 具有公网ip的服务器(需要开放3443/tcp端口，9993/tcp端口，9993/udp端口）
+- 具有公网ip的服务器(需要开放3443/tcp端口，9992/tcp端口，9992/udp端口）
 - 安装docker
   
 # 开始
@@ -27,7 +27,7 @@ docker build -t zerotier-planet .
 
 # 启动项目
 ```
-docker run -d --name zerotier-planet -p 3443:3443 -p 9993:9993 -p 9993:9993/udp -v /var/lib/zerotier-one:/var/lib/zerotier-one --restart unless-stopped zerotier-planet
+docker run -d --name zerotier-planet -p 3443:3443 -p 9992:9993 -p 9992:9993/udp -v /opt/zerotier-planet:/var/lib/zerotier-one --restart unless-stopped zerotier-planet
 ```
 
 
@@ -43,9 +43,10 @@ docker run -d --name zerotier-planet -p 3443:3443 -p 9993:9993 -p 9993:9993/udp 
 默认密码为 password
 
 进入后创建一个网络，可以得到一个网络ID
+通过官方的app就可以直接连接这个网络ID了，下面的步骤为可选操作。
 
-# 客户端配置【可选】(可以直接通过官方的app连接到上面的网络id)
-首先将服务器/var/lib/zerotier-one 目录下的planet文件下载到本地以备用
+# 【可选】客户端配置
+首先将服务器/opt/zerotier-planet 目录下的planet文件下载到本地以备用
 
 ## linux 客户端配置
 安装zerotier-one客户端
