@@ -33,6 +33,7 @@ docker stop zerotier-planet
 docker rm zerotier-planet
 docker rmi zerotier-planet
 ```
+启动服务
 ```
 docker run -d --name zerotier-planet -p 3443:3443 -p 9992:9993 -p 9992:9993/udp -v /opt/zerotier-planet:/var/lib/zerotier-one --restart unless-stopped zerotier-planet:latest
 ```
