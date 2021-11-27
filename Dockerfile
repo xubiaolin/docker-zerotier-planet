@@ -30,6 +30,9 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
 
     cp /opt/patch/* . &&\
     python3 patch.py &&\
+    zerotier-idtool genmoon moon.json &&\
+    mkdir moons.d && cp ./*.moon ./moons.d &&\
+
     rm /opt/ZeroTierOne/attic/world/mkworld.cpp &&\
     cp mkworld.cpp /opt/ZeroTierOne/attic/world/ &&\
     cd /opt/ZeroTierOne/attic/world/ && \
