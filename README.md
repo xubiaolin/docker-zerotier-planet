@@ -19,13 +19,6 @@ git clone https://github.com.cnpmjs.org/xubiaolin/docker-zerotier-planet.git
 
 
 ## 3.在包含Dockerfile的目录下打包镜像
-```
-docker build -t zerotier-planet:latest .
-```
-打包预计需要2-5分钟,具体需要看网络与机型
-
-
-# 启动项目
 如果您不是第一次使用该项目，您需要先执行以下命令
 ```
 rm -rf /opt/zerotier-planet 
@@ -33,6 +26,15 @@ docker stop zerotier-planet
 docker rm zerotier-planet
 docker rmi zerotier-planet
 ```
+打包镜像
+```
+docker build -t zerotier-planet:latest .
+```
+打包预计需要2-5分钟,具体需要看网络与机型
+
+
+# 启动项目
+
 启动服务
 ```
 docker run -d --name zerotier-planet -p 3443:3443 -p 9992:9993 -p 9992:9993/udp -v /opt/zerotier-planet:/var/lib/zerotier-one --restart unless-stopped zerotier-planet:latest
