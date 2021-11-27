@@ -66,6 +66,12 @@ curl -s https://install.zerotier.com | sudo bash
 进入/var/lib/zerotier-one目录下，
 删除目录下的planet文件，然后把从服务器下载的planet文件替换过来
 
+重启一下zerotier-one服务
+debian系使用命令
+```
+service zerotier-one restart 
+```
+
 然后执行zerotier-cli join 网络ID
 
 成功后可以在管理后台上面看到一个新增的members,此时我们需要授权，否则将无法访问。
