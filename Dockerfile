@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-ADD ./run.sh /app/
+ADD ./server.sh /app/
 ADD ./patch /opt/patch/
 
 VOLUME ["/var/lib/zerotier-one/"]
@@ -39,4 +39,4 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     sh build.sh 
 
 WORKDIR /app/
-CMD ["sh","./run.sh"]
+CMD ["sh","./server.sh"]
