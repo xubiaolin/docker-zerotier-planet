@@ -36,8 +36,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     rm /opt/ZeroTierOne/attic/world/mkworld.cpp &&\
     cp mkworld.cpp /opt/ZeroTierOne/attic/world/ &&\
     cd /opt/ZeroTierOne/attic/world/ && \
-    sh build.sh &&\
-    cp ./world.bin /var/lib/zerotier-one/planet
+    sh build.sh 
 
 WORKDIR /app/
 CMD ["sh","./run.sh"]
