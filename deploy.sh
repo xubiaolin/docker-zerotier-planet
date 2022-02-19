@@ -12,4 +12,4 @@ docker build -t $imageName:latest .
 
 echo "启动服务"
 for i in $(lsof -i:9993 -t);do kill -2 $i;done
-docker run -d --name $imageName -p 3443:3443 -p 9993:9993 -p 9993:9993/udp -v /opt/$imageName:/var/lib/zerotier-one --restart unless-stopped $imageName:latest
+docker run -d --network host --name $imageName -p 3443:3443 -p 9993:9993 -p 9993:9993/udp -v /opt/$imageName:/var/lib/zerotier-one --restart unless-stopped $imageName:latest
