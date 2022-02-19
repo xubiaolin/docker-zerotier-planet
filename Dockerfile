@@ -13,7 +13,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     npm config set registry http://registry.npm.taobao.org  &&\
    
     # 安装ztncui
-    cd /opt && git clone https://github.com.cnpmjs.org/key-networks/ztncui.git  &&\
+    cd /opt && git clone https://github.91chi.fun/https://github.com/key-networks/ztncui.git  &&\
     cd ztncui/src && npm install -g node-gyp && npm install &&\
     cp -pv ./etc/default.passwd ./etc/passwd &&\
     echo 'HTTP_PORT=3443' > .env&&\
@@ -22,7 +22,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
 
     # 添加补丁
     cd /opt && \
-    git clone https://github.com.cnpmjs.org/zerotier/ZeroTierOne.git && \
+    git clone https://github.91chi.fun/https://github.com/zerotier/ZeroTierOne.git && \
 
     cd /var/lib/zerotier-one && \
     zerotier-idtool generate identity.public identity.secret &&\
