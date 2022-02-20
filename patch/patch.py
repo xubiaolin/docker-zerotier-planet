@@ -1,51 +1,51 @@
 import os
 import json
+from re import M
 
 
-def patch_moon():
-    patch_data = dict()
-    with open("patch.json", "r") as f:
-        patch_data = json.load(f)
-
-    moon = dict()
-    with open("moon.json", "r") as f:
+def get_moon():
+    with open("/var/lib/zerotier-one/moon.json", "r") as f:
         moon = json.load(f)
-
-    endpoint_patch = patch_data.get("stableEndpoints", [])
-    if len(endpoint_patch) == 0:
-        print("请配置endpoint!")
-        exit(1)
-
-    moon["roots"][0]["stableEndpoints"] = endpoint_patch
-
-    with open("moon.json", "w+") as f:
-        f.write(json.dumps(moon))
+        return moon
 
 
-def patch_world():
-    moon = dict()
+def get_patch():
+    with open("/opt/patch/patch.json", "r") as f:
+        return json.load(f)
 
-    file_moon = open("moon.json", "r")
-    moon = json.load(file_moon)
-    file_moon.close()
 
-    middle = '''
-    //China
-    roots.push_back(World::Root());
-    roots.back().identity = Identity("{}");'''.format(moon["roots"][0]["identity"])
+def patch():
+    moon = get_moon()
+    patch = get_patch()
 
-    for i in moon["roots"][0]["stableEndpoints"]:
-        middle += '\n    roots.back().stableEndpoints.push_back(InetAddress("{}"));'.format(i)
+    identity = moon["roots"][0]["identity"]
+    moon["roots"][0]["stableEndpoints"] = patch["stableEndpoints"]
 
-    with open("mkworld.cpp", "r") as cpp:
-        code = "".join(cpp.readlines())
+    # 修改moon  
+    with open("/var/lib/zerotier-one/moon.json", "w") as f:
+        f.write(json.dumps(moon,sort_keys=True, indent=2))
 
-    with open("mknewworld.cpp", "w+") as cpp:
-        code = code.replace("	//__PATCH_REPLACE__", middle)
-        print(code)
-        cpp.write(code)
+    print("修改后的moon")
+    print(moon)
+
+    # 修改world
+    moon["roots"][0]["stableEndpoints"] = get_patch()["stableEndpoints"]
+    text = f"""// Los Angeles
+	roots.push_back(World::Root());
+	roots.back().identity = Identity("{identity}");
+"""
+
+    for i in get_patch()["stableEndpoints"]:
+        text += f'\n        roots.back().stableEndpoints.push_back(InetAddress("{i}"));'
+
+    # 生成文件
+    with open("/opt/patch/mkworld.cpp", "r") as cpp:
+        world = "".join(cpp.readlines())
+        world = world.replace("//__PATCH_REPLACE__", text)
+
+    with open("/opt/ZeroTierOne/attic/world/mkworld.cpp", "w") as cpp:
+        cpp.write(world)
 
 
 if __name__ == '__main__':
-    patch_moon()
-    patch_world()
+    patch()
