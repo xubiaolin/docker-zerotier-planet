@@ -5,7 +5,7 @@ npm config set registry http://registry.npm.taobao.org && npm install -g node-gy
 
 echo "下载源码中,源码文件较大，请耐心等待;如果源码下载失败，请重新执行该脚本"
 # 下载源码
-cd /opt && git clone http://github.markxu.vip/https://github.com/xubiaolin/ztncui.git
+cd /opt && git clone http://github.markxu.vip/https://github.com/key-networks/ztncui.git
 cd /opt && git clone http://github.markxu.vip/https://github.com/zerotier/ZeroTierOne.git
 
 # 配置ztncui
