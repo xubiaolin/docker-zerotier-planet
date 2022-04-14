@@ -10,7 +10,7 @@ def get_moon():
 
 
 def get_patch():
-    with open("/opt/patch/patch.json", "r") as f:
+    with open("/app/patch/patch.json", "r") as f:
         return json.load(f)
 
 
@@ -39,7 +39,7 @@ def patch():
         text += f'\n        roots.back().stableEndpoints.push_back(InetAddress("{i}"));'
 
     # 生成文件
-    with open("/opt/patch/mkworld.cpp", "r") as cpp:
+    with open("/app/patch/mkworld.cpp", "r") as cpp:
         world = "".join(cpp.readlines())
         world = world.replace("//__PATCH_REPLACE__", text)
 

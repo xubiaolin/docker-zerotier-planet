@@ -1,10 +1,8 @@
-FROM alpine:latest
+FROM ubuntu:latest
+ENV TZ=Asia/Shanghai \
+    DEBIAN_FRONTEND=noninteractive
 
-ADD ./init.sh /app/
-ADD ./gen_world.sh /app/
-ADD ./patch /opt/patch/
-
-VOLUME ["/var/lib/zerotier-one/"]
+Add . /app
 
 RUN cd /app && sh init.sh
 
