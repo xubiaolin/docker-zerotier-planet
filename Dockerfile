@@ -2,7 +2,7 @@ FROM ubuntu:latest
 ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive
 
-Add . /app
+ADD . /app
 
 RUN cd /app && sh init.sh
 
