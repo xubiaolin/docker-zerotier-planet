@@ -152,6 +152,15 @@ PS C:\Windows\system32>
 ## 4.3 安卓客户端配置
 [Zerotier 非官方安卓客户端发布：支持自建 Moon 节点 - V2EX](https://www.v2ex.com/t/768628)
 
+## 4.4 MacOS 客户端配置
+步骤如下：
+
+1. 进入 `/Library/Application\ Support/ZeroTier/One/` 目录，并替换目录下的 `planet` 文件
+2. 重启 ZeroTier-One：`cat /Library/Application\ Support/ZeroTier/One/zerotier-one.pid | sudo xargs kill`
+3. 加入网络 `zerotier-cli join` 网络 `id`
+4. 管理后台同意加入请求
+5. `zerotier-cli peers` 可以看到` planet` 角色
+
 # 参考链接
 [zerotier-虚拟局域网详解](https://www.glimmer.ltd/2021/3299983056/)
 
