@@ -26,8 +26,8 @@ cd /usr/include/nlohmann/ && wget https://github.com/nlohmann/json/releases/down
 
 npm config set registry http://registry.npm.taobao.org && npm install -g node-gyp
 curl -s https://install.zerotier.com | bash
-cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/key-networks/ztncui.git
-cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/zerotier/ZeroTierOne.git
+cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/key-networks/ztncui.git --depth 1
+cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/zerotier/ZeroTierOne.git --depth 1
 
 cd /opt/ztncui/src
 npm install
