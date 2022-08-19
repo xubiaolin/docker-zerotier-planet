@@ -232,7 +232,7 @@ server {
 
 # 6:Q&A:
 ## 1. Q：为什么我ping不通目标机器？
-A：请检查防火墙设置，windows系统需要允许ICMP入站，linux同理
+A：请检查防火墙设置，`Windows` 系统需要允许 `ICMP` 入站，`Linux` 同理
 
 ## 2. Q：IOS客户端怎么用？
 A：我也不知道
