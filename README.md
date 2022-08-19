@@ -14,7 +14,8 @@
   - [4.3 安卓客户端配置](#43-安卓客户端配置)
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
 - [参考链接](#参考链接)
-- [5:Q&A:](#5qa)
+- [5. 管理面板SSL配置](#5-管理面板ssl配置)
+- [6:Q&A:](#6qa)
   - [1. Q：为什么我ping不通目标机器？](#1-q为什么我ping不通目标机器)
   - [2. Q：IOS客户端怎么用？](#2-qios客户端怎么用)
   - [3. Q: 为什么看不到官方的Planet](#3-q-为什么看不到官方的planet)
@@ -189,8 +190,47 @@ PS C:\Windows\system32>
 
 [五分钟自建 ZeroTier 的 Planet/Controller](https://v2ex.com/t/799623)
 
+# 5. 管理面板SSL配置
+管理面板的SSL支持需要自行配置，参考Nginx配置如下：
+```
+upstream zerotier {
+  server 127.0.0.1: 3443;
+}
 
-# 5:Q&A:
+server {
+
+  listen 443 ssl;
+
+  server_name {CUSTOME_DOMAIN}; #替换自己的域名
+
+  # ssl证书地址
+  ssl_certificate    pem和或者crt文件的路径;
+  ssl_certificate_key key文件的路径;
+
+  # ssl验证相关配置
+  ssl_session_timeout  5m;    #缓存有效期
+  ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;    #加密算法
+  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;    #安全链接可选的加密协议
+  ssl_prefer_server_ciphers on;   #使用服务器端的首选算法
+
+
+  location / {
+    proxy_pass http: //zerotier;
+    proxy_set_header HOST $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+
+server {
+    listen       80;
+    server_name  {CUSTOME_DOMAIN}; //替换自己的域名
+    return 301 https: //$server_name$request_uri;
+}
+```
+
+# 6:Q&A:
 ## 1. Q：为什么我ping不通目标机器？
 A：请检查防火墙设置，windows系统需要允许ICMP入站，linux同理
 
