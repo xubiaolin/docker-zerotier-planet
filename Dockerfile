@@ -4,10 +4,13 @@ ENV TZ=Asia/Shanghai \
 
 ADD . /app
 
-RUN  sed -i "s@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list \
+RUN  echo "deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal main restricted universe multiverse" > /etc/apt/sources.list \
+    && echo "deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-updates main restricted universe multiverse" >>/etc/apt/sources.list \
+    && echo "deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-backports main restricted universe multiverse" >>/etc/apt/sources.list \
+    && echo "deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-security main restricted universe multiverse" >>/etc/apt/sources.list \
     && sed -i "s@http://.*security.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime  && echo 'Asia/Shanghai' > /etc/timezone\
-    && apt update && apt install git python3 npm make curl wget -y \
+    && apt update && apt install git python3 npm make curl wget -y  \
     && mkdir /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
     && npm config set registry http://registry.npm.taobao.org && npm install -g node-gyp \
     && apt-get clean && rm -rf /var/lib/apt/lists/* 
