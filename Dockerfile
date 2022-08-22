@@ -4,29 +4,14 @@ ENV TZ=Asia/Shanghai \
 
 ADD . /app
 
-RUN  echo "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse\n \
-    deb-src http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse\n\
-    deb http://mirrors.aliyun.com/ubuntu/ focal-security main restricted universe multiverse\n\
-    deb-src http://mirrors.aliyun.com/ubuntu/ focal-security main restricted universe multivers\ne\
-    deb http://mirrors.aliyun.com/ubuntu/ focal-updates main restricted universe multiverse\n\
-    deb-src http://mirrors.aliyun.com/ubuntu/ focal-updates main restricted universe multiverse\n\
-    deb http://mirrors.aliyun.com/ubuntu/ focal-proposed main restricted universe multiverse\n\
-    deb-src http://mirrors.aliyun.com/ubuntu/ focal-proposed main restricted universe multiverse\n\
-    deb http://mirrors.aliyun.com/ubuntu/ focal-backports main restricted universe multiverse\n\
-    deb-src http://mirrors.aliyun.com/ubuntu/ focal-backports main restricted universe multiverse\n" >/etc/apt/sources.list \
-    && apt update \
-    && apt install -y tzdata \
-    && ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} >/etc/timezone && dpkg-reconfigure --frontend noninteractive tzdata \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt update \
-    && apt install git python3 npm make curl wget -y \
-    && mkdir /usr/include/nlohmann/ \
-    && cd /usr/include/nlohmann/ \
-    && wget https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
-    && npm config set registry http://registry.npm.taobao.org \
-    && npm install -g node-gyp
+RUN  sed -i "s@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list& \
+    && sed -i "s@http://.*security.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list \
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime  && echo 'Asia/Shanghai' > /etc/timezone\
+    && apt update && apt install git python3 npm make curl wget -y \
+    && mkdir /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
+    && npm config set registry http://registry.npm.taobao.org && npm install -g node-gyp \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* 
+
 
 RUN curl -s https://install.zerotier.com | bash \
     && cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/key-networks/ztncui.git --depth 1 \
