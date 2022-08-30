@@ -56,8 +56,8 @@ function menu() {
     echo
     echo "=============功能菜单============="
     echo "| 1 - 安装"
-    echo "| 2 - 更新"
-    echo "| 3 - 卸载"
+    #echo "| 2 - 更新"
+    #echo "| 3 - 卸载"
     echo "| q - 退出"
     echo "---------------------------------"
     printf "请选择菜单："
@@ -67,10 +67,10 @@ function menu() {
         echo "安装"
         deploy
 
-    elif [ "$n" = "2" ]; then
-        echo $n
-    elif [ "$n" = "3" ]; then
-        echo $n
+    #elif [ "$n" = "2" ]; then
+    #    echo $n
+    #elif [ "$n" = "3" ]; then
+    #    echo $n
     elif [ "$n" = "q" ]; then
         echo 退出
         return
