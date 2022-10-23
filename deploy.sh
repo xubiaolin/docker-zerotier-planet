@@ -7,10 +7,10 @@ function deploy() {
     curr_ip=$(curl -s cip.cc | grep http | awk -F '/' '{print $4}')
 
     echo "-------------------------------------------"
-    echo 您当前公网ip为："$curr_ip"
-    echo
-    echo 使用其他ip请输入要使用的ip,例如1.1.1.1,支持使用域名
-    echo 使用当前ip请输入:y
+    echo "支持使用域名或者ip，默认端口为9993，暂不支持修改"
+    echo "请输入 ip 或者 域名"
+    echo ""
+    echo "您当前公网ip为："$curr_ip",使用当前ip请输入:y"
     echo "-------------------------------------------"
 
     ip=""
@@ -48,8 +48,8 @@ function deploy() {
 
     echo "启动服务"
     for i in $(lsof -i:9993 -t); do kill -2 $i; done
-    docker run -d --network host --name $imageName --restart unless-stopped $imageName
     docker cp zerotier-planet:/app/bin/planet /opt/planet
+    docker run -d --network host --name $imageName --restart unless-stopped -v ./zerotier-one:/var/lib/zerotier-one -v ./ztncui:/opt/ztncui $imageName
 }
 
 function menu() {
