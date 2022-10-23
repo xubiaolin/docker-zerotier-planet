@@ -21,8 +21,8 @@ RUN  echo "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe 
 
 
 RUN curl -s https://install.zerotier.com | bash \
-    && cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/key-networks/ztncui.git --depth 1 \
-    && cd /opt && git clone -v http://gh-proxy.markxu.vip/https://github.com/zerotier/ZeroTierOne.git --depth 1 \
+    && cd /opt && git clone -v https://ghproxy.com/https://github.com/key-networks/ztncui.git --depth 1 \
+    && cd /opt && git clone -v https://ghproxy.com/https://github.com/zerotier/ZeroTierOne.git --depth 1 \
     && cd /opt/ztncui/src \
     && npm install \
     && cp -pv ./etc/default.passwd ./etc/passwd \
