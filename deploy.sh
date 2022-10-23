@@ -48,8 +48,8 @@ function deploy() {
 
     echo "启动服务"
     for i in $(lsof -i:9993 -t); do kill -2 $i; done
+    docker run -d --network host --name $imageName --restart unless-stopped -v $(pwd)/data/zerotier-one:/var/lib/zerotier-one -v $(pwd)/data/ztncui:/opt/ztncui $imageName
     docker cp zerotier-planet:/app/bin/planet /opt/planet
-    docker run -d --network host --name $imageName --restart unless-stopped -v ./data/zerotier-one:/var/lib/zerotier-one -v ./data/ztncui:/opt/ztncui $imageName
 }
 
 function menu() {
