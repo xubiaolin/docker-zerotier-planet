@@ -23,7 +23,7 @@ function deploy() {
     fi
 
     echo "----------------------------"
-    echo "当前的ip为:$ip, 是否继续? y/n"
+    echo "部署的ip为:$ip, 是否继续? y/n"
     read or
     if [ "$or" = "y" ]; then
         echo "{
