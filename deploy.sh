@@ -48,7 +48,7 @@ function deploy() {
 
     echo "启动服务"
     for i in $(lsof -i:9993 -t); do kill -2 $i; done
-    docker run -d --network host --name $imageName --restart unless-stopped -v $(pwd)/data/zerotier-one:/var/lib/zerotier-one -v $(pwd)/data/ztncui:/opt/ztncui $imageName
+    docker run -d --network host --name $imageName --restart unless-stopped $imageName
     docker cp $imageName:/app/bin/planet /opt/planet
 }
 
@@ -75,12 +75,17 @@ function import() {
     echo "导入成功"
 }
 
+func build_plant(){
+
+}
+
 function menu() {
     echo
     echo "=============功能菜单============="
     echo "| 1 - 安装"
     echo "| 2 - 导出配置（需要先正确安装）"
     echo "| 3 - 导入配置（需要先安装）"
+    echo "| 4 - 重新生成planet文件"
     echo "| q - 退出"
     echo "---------------------------------"
     printf "请选择菜单："
