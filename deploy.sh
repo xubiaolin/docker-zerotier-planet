@@ -75,10 +75,6 @@ function import() {
     echo "导入成功"
 }
 
-func build_plant(){
-
-}
-
 function menu() {
     echo
     echo "=============功能菜单============="
