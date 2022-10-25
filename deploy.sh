@@ -73,7 +73,19 @@ function import() {
 
     docker restart $imageName
 
-    echo "导入成功"
+    # 重新生成planet文件
+    cd /app/patch && python3 patch.py
+    cd /var/lib/zerotier-one && zerotier-idtool genmoon moon.json && rm -rf moons.d && mkdir moons.d && cp ./*.moon ./moons.d 
+    cd /opt/ZeroTierOne/attic/world/ && sh build.sh 
+    sleep 5s 
+
+    cd /opt/ZeroTierOne/attic/world/ && ./mkworld 
+    mkdir /app/bin -p && cp world.bin /app/bin/planet 
+    service zerotier-one restart
+
+    docker restart $imageName
+
+    echo "导入成功，请重新使用/opt/planet替换客户端上的文件"
 }
 
 function menu() {
