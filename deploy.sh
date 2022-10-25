@@ -63,12 +63,24 @@ function export() {
     echo "配置放在./backup目录下"
 }
 
+function import() {
+    docker cp ./data/zerotier-one.tar.gz $imageName:/var/lib/
+    docker exec $imageName bash -c "cd /var/lib/ && rm -rf zerotier-one && tar -zxvf zerotier-one.tar.gz"
+
+    docker cp ./data/ztncui.tar.gz $imageName:/opt/
+    docker exec $imageName bash -c "cd /opt/ && rm -rf ztncui && tar -zxvf ztncui.tar.gz"
+
+    docker restart $imageName
+
+    echo "导入成功"
+}
+
 function menu() {
     echo
     echo "=============功能菜单============="
     echo "| 1 - 安装"
-    echo "| 2 - 导出配置"
-    #echo "| 3 - 卸载"
+    echo "| 2 - 导出配置（需要先正确安装）"
+    echo "| 3 - 导入配置（需要先安装）"
     echo "| q - 退出"
     echo "---------------------------------"
     printf "请选择菜单："
@@ -81,8 +93,9 @@ function menu() {
     elif [ "$n" = "2" ]; then
         echo "导出配置"
         export
-    #elif [ "$n" = "3" ]; then
-    #    echo $n
+    elif [ "$n" = "3" ]; then
+        echo "导入配置"
+        import
     elif [ "$n" = "q" ]; then
         echo 退出
         return
