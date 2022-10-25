@@ -1,7 +1,8 @@
 #!/bin/bash
 
+imageName="zerotier-planet"
+
 function deploy() {
-    imageName="zerotier-planet"
 
     # 处理ip信息
     curr_ip=$(curl -s cip.cc | grep http | awk -F '/' '{print $4}')
