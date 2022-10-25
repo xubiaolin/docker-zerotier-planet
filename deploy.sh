@@ -49,14 +49,25 @@ function deploy() {
     echo "启动服务"
     for i in $(lsof -i:9993 -t); do kill -2 $i; done
     docker run -d --network host --name $imageName --restart unless-stopped -v $(pwd)/data/zerotier-one:/var/lib/zerotier-one -v $(pwd)/data/ztncui:/opt/ztncui $imageName
-    docker cp zerotier-planet:/app/bin/planet /opt/planet
+    docker cp $imageName:/app/bin/planet /opt/planet
+}
+
+function export() {
+    docker exec $imageName bash -c "cd /var/lib/ && tar -zcvf zerotier-one.tar.gz zerotier-one/"
+    docker cp $imageName:/var/lib/zerotier-one.tar.gz ./backup
+
+    docker exec $imageName bash -c "cd /opt/ && tar -zcvf ztncui.tar.gz ztncui/"
+    docker cp $imageName:/opt/ztncui.tar.gz ./backup
+
+    echo "导出成功"
+    echo "配置放在./backup目录下"
 }
 
 function menu() {
     echo
     echo "=============功能菜单============="
     echo "| 1 - 安装"
-    #echo "| 2 - 更新"
+    echo "| 2 - 导出配置"
     #echo "| 3 - 卸载"
     echo "| q - 退出"
     echo "---------------------------------"
@@ -67,8 +78,9 @@ function menu() {
         echo "安装"
         deploy
 
-    #elif [ "$n" = "2" ]; then
-    #    echo $n
+    elif [ "$n" = "2" ]; then
+        echo "导出配置"
+        export
     #elif [ "$n" = "3" ]; then
     #    echo $n
     elif [ "$n" = "q" ]; then
