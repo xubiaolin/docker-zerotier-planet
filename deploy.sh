@@ -56,10 +56,10 @@ function deploy() {
 
 function export() {
     docker exec $imageName bash -c "cd /var/lib/ && tar -pzcvf zerotier-one.tar.gz zerotier-one/"
-    docker cp $imageName:/var/lib/zerotier-one.tar.gz $backPath
+    docker cp $imageName:/var/lib/zerotier-one.tar.gz $backPath/zerotier-one.tar.gz
 
     docker exec $imageName bash -c "cd /opt/ && tar -pzcvf ztncui.tar.gz ztncui/"
-    docker cp $imageName:/opt/ztncui.tar.gz $backPath
+    docker cp $imageName:/opt/ztncui.tar.gz $backPath/ztncui.tar.gz
 
     echo "导出成功"
     echo "配置放在./backup目录下"
