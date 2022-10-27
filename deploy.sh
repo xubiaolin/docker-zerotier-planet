@@ -77,7 +77,6 @@ function import() {
 
     # 重新生成planet文件
     docker exec $imageName bash -c "cd /app/patch && python3 patch.py \
-    && cd /var/lib/zerotier-one && zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d \
     && cd /opt/ZeroTierOne/attic/world/ && sh build.sh \
     && sleep 5s \
     && cd /opt/ZeroTierOne/attic/world/ && ./mkworld \
