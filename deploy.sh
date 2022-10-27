@@ -1,7 +1,7 @@
 #!/bin/bash
 
 imageName="zerotier-planet"
-backPath="./data"
+backPath="./backup"
 
 function deploy() {
 
@@ -55,6 +55,7 @@ function deploy() {
 }
 
 function export() {
+    mkdir -p $backPath
     docker exec $imageName bash -c "cd /var/lib/ && tar -pzcvf zerotier-one.tar.gz zerotier-one/"
     docker cp $imageName:/var/lib/zerotier-one.tar.gz $backPath/zerotier-one.tar.gz
 
