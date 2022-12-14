@@ -235,7 +235,7 @@ server {
 A：请检查防火墙设置，`Windows` 系统需要允许 `ICMP` 入站，`Linux` 同理
 
 ## 2. Q：IOS客户端怎么用？
-A：我也不知道
+A：iOS 客户端插件在这里，设备需要越狱： https://github.com/lemon4ex/ZeroTieriOSFix
 
 ## 3. Q: 为什么看不到官方的Planet
 A: 该项目剔除了官方服务器，只保留了自定义的Planet节点
