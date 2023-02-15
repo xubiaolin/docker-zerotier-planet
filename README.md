@@ -15,7 +15,7 @@
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
 - [参考链接](#参考链接)
 - [5. 管理面板SSL配置](#5-管理面板ssl配置)
-- [6:Q&A:](#6qa)
+- [6:Q\&A:](#6qa)
   - [1. Q：为什么我ping不通目标机器？](#1-q为什么我ping不通目标机器)
   - [2. Q：IOS客户端怎么用？](#2-qios客户端怎么用)
   - [3. Q: 为什么看不到官方的Planet](#3-q-为什么看不到官方的planet)
@@ -93,7 +93,7 @@ WARNING: Published ports are discarded when using host network mode
 
 
 ## 3.4 下载 `planet` 文件
-脚本运行完成后，会在 `/opt/` 目录下有个 `planet` 文件
+脚本运行完成后，会在 `/tmp/` 目录下有个 `planet` 文件
 
 下载该文件以备用
 
