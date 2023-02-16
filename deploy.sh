@@ -1,7 +1,8 @@
 #!/bin/bash
 
+imageName="zerotier-planet"
+
 function deploy() {
-    imageName="zerotier-planet"
 
     # 处理ip信息
     curr_ip=$(curl -s cip.cc | grep http | awk -F '/' '{print $4}')
@@ -52,11 +53,18 @@ function deploy() {
     docker cp zerotier-planet:/app/bin/planet /tmp/planet
 }
 
+function upgrade(){
+    echo "准备更新zerotier服务"
+    docker exec $imageName bash -c "apt update && apt upgrade zerotier-one" -y
+    docker restart $imageName
+    echo "done!"
+}
+
 function menu() {
     echo
     echo "=============功能菜单============="
     echo "| 1 - 安装"
-    #echo "| 2 - 更新"
+    echo "| 2 - 更新"
     #echo "| 3 - 卸载"
     echo "| q - 退出"
     echo "---------------------------------"
@@ -67,8 +75,8 @@ function menu() {
         echo "安装"
         deploy
 
-    #elif [ "$n" = "2" ]; then
-    #    echo $n
+    elif [ "$n" = "2" ]; then
+        upgrade
     #elif [ "$n" = "3" ]; then
     #    echo $n
     elif [ "$n" = "q" ]; then
