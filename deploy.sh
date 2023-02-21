@@ -1,7 +1,6 @@
 #!/bin/bash
 
 imageName="zerotier-planet"
-backPath="./backup"
 
 function deploy() {
 
@@ -51,50 +50,22 @@ function deploy() {
     echo "启动服务"
     for i in $(lsof -i:9993 -t); do kill -2 $i; done
     docker run -d -p 9993:9993 -p 9993:9993/udp -p 3443:3443 --name $imageName --restart unless-stopped $imageName
-    docker cp $imageName:/app/bin/planet /opt/planet
+    docker cp zerotier-planet:/app/bin/planet /tmp/planet
 }
 
-function export() {
-    mkdir -p $backPath
-    docker exec $imageName bash -c "cd /var/lib/ && tar -pzcvf zerotier-one.tar.gz zerotier-one/"
-    docker cp $imageName:/var/lib/zerotier-one.tar.gz $backPath/zerotier-one.tar.gz
-
-    docker exec $imageName bash -c "cd /opt/ && tar -pzcvf ztncui.tar.gz ztncui/"
-    docker cp $imageName:/opt/ztncui.tar.gz $backPath/ztncui.tar.gz
-
-    echo "导出成功"
-    echo "配置放在./backup目录下"
-}
-
-function import() {
-    docker cp $backPath/zerotier-one.tar.gz $imageName:/var/lib/
-    docker exec $imageName bash -c "cd /var/lib/ && rm -rf zerotier-one && tar -pzxvf zerotier-one.tar.gz"
-
-    docker cp $backPath/ztncui.tar.gz $imageName:/opt/
-    docker exec $imageName bash -c "cd /opt/ && rm -rf ztncui && tar -pzxvf ztncui.tar.gz"
-
+function upgrade(){
+    echo "准备更新zerotier服务"
+    docker exec $imageName bash -c "apt update && apt upgrade zerotier-one" -y
     docker restart $imageName
-
-    # 重新生成planet文件
-    docker exec $imageName bash -c "cd /app/patch && python3 patch.py \
-    && cd /opt/ZeroTierOne/attic/world/ && sh build.sh \
-    && sleep 5s \
-    && cd /opt/ZeroTierOne/attic/world/ && ./mkworld \
-    && mkdir /app/bin -p && cp world.bin /app/bin/planet \
-    && service zerotier-one restart"
-
-    docker restart $imageName
-
-    echo "导入成功，请重新使用/opt/planet替换客户端上的文件"
+    echo "done!"
 }
 
 function menu() {
     echo
     echo "=============功能菜单============="
     echo "| 1 - 安装"
-    echo "| 2 - 导出配置（需要先正确安装）"
-    echo "| 3 - 导入配置（需要先正确安装）"
-    # echo "| 4 - 重新生成planet文件"
+    echo "| 2 - 更新"
+    #echo "| 3 - 卸载"
     echo "| q - 退出"
     echo "---------------------------------"
     printf "请选择菜单："
@@ -105,11 +76,9 @@ function menu() {
         deploy
 
     elif [ "$n" = "2" ]; then
-        echo "导出配置"
-        export
-    elif [ "$n" = "3" ]; then
-        echo "导入配置"
-        import
+        upgrade
+    #elif [ "$n" = "3" ]; then
+    #    echo $n
     elif [ "$n" = "q" ]; then
         echo 退出
         return
