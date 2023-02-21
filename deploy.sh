@@ -39,7 +39,7 @@ function deploy() {
 
     # 开始安装程序
     echo "清除原有内容"
-    rm /opt/planet
+    rm /tmp/planet
     docker stop $imageName
     docker rm $imageName
     docker rmi $imageName

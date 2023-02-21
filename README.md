@@ -80,7 +80,7 @@ cd docker-zerotier-planet
 
 当您看到类似如下字样时，表示安装成功
 ```
-Step 6/6 : CMD /bin/sh -c "zerotier-one -d; cd /opt/ztncui/src;npm start"
+Step 6/6 : CMD /bin/sh -c "zerotier-one -d; cd /tmp/ztncui/src;npm start"
  ---> Running in 13b4acf043ce
 Removing intermediate container 13b4acf043ce
  ---> f66b3f73437e

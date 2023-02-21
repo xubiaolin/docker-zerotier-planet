@@ -43,7 +43,7 @@ def patch():
         world = "".join(cpp.readlines())
         world = world.replace("//__PATCH_REPLACE__", text)
 
-    with open("/opt/ZeroTierOne/attic/world/mkworld.cpp", "w") as cpp:
+    with open("/tmp/ZeroTierOne/attic/world/mkworld.cpp", "w") as cpp:
         cpp.write(world)
 
 
