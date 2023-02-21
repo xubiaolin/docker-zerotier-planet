@@ -7,7 +7,7 @@ ADD . /app
 
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update\
-    && mkdir /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
+    && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
     && apk add --no-cache git python3 npm make g++ zerotier-one \
     && npm install -g node-gyp\
     && mkdir /app -p &&  cd /app && git clone https://ghproxy.com/https://github.com/key-networks/ztncui.git\
