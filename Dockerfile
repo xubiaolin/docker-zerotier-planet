@@ -12,6 +12,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     && npm install -g node-gyp\
     && mkdir /app -p &&  cd /app && git clone https://ghproxy.com/https://github.com/key-networks/ztncui.git\
     && cd /app/ztncui/src \
+    && cp /app/patch/binding.gyp .\
     && npm install \
     && echo 'HTTP_PORT=3443' >.env \
     && echo 'NODE_ENV=production' >>.env \
