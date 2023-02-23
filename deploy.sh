@@ -55,7 +55,7 @@ function deploy() {
 
 function upgrade(){
     echo "准备更新zerotier服务"
-    docker exec $imageName bash -c "apt update && apt upgrade zerotier-one" -y
+    docker exec $imageName sh -c "apt update && apt upgrade zerotier-one -y || apk upgrade zerotier-one" 
     docker restart $imageName
     echo "done!"
 }
