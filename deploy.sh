@@ -8,10 +8,10 @@ function deploy() {
     curr_ip=$(curl -s cip.cc | grep http | awk -F '/' '{print $4}')
 
     echo "-------------------------------------------"
-    echo 您当前公网ip为："$curr_ip"
-    echo
-    echo 使用其他ip请输入要使用的ip,例如1.1.1.1,支持使用域名
-    echo 使用当前ip请输入:y
+    echo "支持使用域名或者ip，默认端口为9993，暂不支持修改"
+    echo "请输入 ip 或者 域名"
+    echo ""
+    echo "您当前公网ip为："$curr_ip",使用当前ip请输入:y"
     echo "-------------------------------------------"
 
     ip=""
@@ -24,7 +24,7 @@ function deploy() {
     fi
 
     echo "----------------------------"
-    echo "当前的ip为:$ip, 是否继续? y/n"
+    echo "部署的ip为:$ip, 是否继续? y/n"
     read or
     if [ "$or" = "y" ]; then
         echo "{
@@ -39,7 +39,7 @@ function deploy() {
 
     # 开始安装程序
     echo "清除原有内容"
-    rm /opt/planet
+    rm /tmp/planet
     docker stop $imageName
     docker rm $imageName
     docker rmi $imageName

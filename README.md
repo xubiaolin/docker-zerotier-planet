@@ -50,6 +50,8 @@ Zerotier 在多设备之间建立了一个 `Peer to Peer VPN（P2PVPN）` 连接
 ##  3.1：准备条件
 - 具有公网 `ip` 的服务器（需要开放 3443/tcp 端口，9993/tcp 端口，9993/udp 端口）
 - 安装 `docker`
+
+ps:如果是centos，安装docker请使用`yum install docker-ce`
   
 ## 3.2：下载项目源码
 ```
@@ -80,7 +82,7 @@ cd docker-zerotier-planet
 
 当您看到类似如下字样时，表示安装成功
 ```
-Step 6/6 : CMD /bin/sh -c "zerotier-one -d; cd /opt/ztncui/src;npm start"
+Step 6/6 : CMD /bin/sh -c "zerotier-one -d; cd /tmp/ztncui/src;npm start"
  ---> Running in 13b4acf043ce
 Removing intermediate container 13b4acf043ce
  ---> f66b3f73437e
