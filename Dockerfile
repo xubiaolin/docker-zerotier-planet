@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:latest as builder
 
 ARG ZT_PORT
 
@@ -35,5 +35,18 @@ RUN cd /app && git clone -v https://ghproxy.com/https://github.com/zerotier/Zero
     && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
     && echo "ZT_TOKEN=$TOKEN">> /app/ztncui/src/.env 
 
+FROM alpine:latest
+WORKDIR /app
+
+COPY --from=builder /app/ztncui /app/ztncui
+COPY --from=builder /app/bin /app/bin
+COPY --from=builder /app/zerotier-one.port /app/zerotier-one.port
+COPY --from=builder /var/lib/zerotier-one /var/lib/zerotier-one
+
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
+    && apk update\
+    && apk add --no-cache npm zerotier-one
+
+VOLUME [ "/app","/var/lib/zerotier-one" ]
 
 CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
