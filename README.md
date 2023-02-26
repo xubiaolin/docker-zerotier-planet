@@ -70,11 +70,11 @@ cd docker-zerotier-planet
 
 根据提示来选择即可，操作完成后会自动部署
 ```
--------------------------------------------
-您当前公网ip为：8.8.8.8, 使用当前ip请输入:y
--------------------------------------------
-使用其他ip请输入要使用的ip,例如1.1.1.1
--------------------------------------------
+欢迎使用zerotier-planet脚本，请选择需要执行的操作：
+1. 安装
+2. 更新
+其他任意键退出
+
 ```
 
 整个脚本预计需要 3-10 分钟,具体需要看网络与机型
@@ -82,15 +82,17 @@ cd docker-zerotier-planet
 
 当您看到类似如下字样时，表示安装成功
 ```
-Step 6/6 : CMD /bin/sh -c "zerotier-one -d; cd /tmp/ztncui/src;npm start"
- ---> Running in 13b4acf043ce
-Removing intermediate container 13b4acf043ce
- ---> f66b3f73437e
-Successfully built f66b3f73437e
-Successfully tagged zerotier-planet:latest
-启动服务
-WARNING: Published ports are discarded when using host network mode
-7782066b89fb217bf53ae57b139c73c3d6df79fecf887d1571aa8eed2433ba75
+启动服务                                                                                                                                        
+3b59df95edabeabbf19aa6605b28704608710719bdf7c6e7612d75d01ede8f48                                                                                
+Preparing to copy...
+Copying from container - 512B
+Copying from container - 769B
+Copying from container - 1.024kB
+Copying from container - 1.536kB
+Successfully copied 2.048kB to /tmp/planet
+planet文件路径为 /tmp/planet
+planet server端口为: 9994, 请在防火墙放行该端口的tcp和udp协议
+enjoy~
 ```
 
 

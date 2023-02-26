@@ -1,5 +1,7 @@
 FROM alpine:latest
 
+ARG ZT_PORT
+
 ENV TZ=Asia/Shanghai
 
 WORKDIR /app
@@ -17,6 +19,8 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     && echo 'HTTP_PORT=3443' >.env \
     && echo 'NODE_ENV=production' >>.env \
     && echo 'HTTP_ALL_INTERFACES=true' >>.env \
+    && echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env\
+    && echo "${ZT_PORT}" >/app/zerotier-one.port \
     && cp -v etc/default.passwd etc/passwd
 
 RUN cd /app && git clone -v https://ghproxy.com/https://github.com/zerotier/ZeroTierOne.git --depth 1\
@@ -32,4 +36,4 @@ RUN cd /app && git clone -v https://ghproxy.com/https://github.com/zerotier/Zero
     && echo "ZT_TOKEN=$TOKEN">> /app/ztncui/src/.env 
 
 
-CMD /bin/sh -c "zerotier-one -d; cd /app/ztncui/src;npm start"
+CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
