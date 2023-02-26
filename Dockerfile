@@ -45,6 +45,8 @@ COPY --from=builder /var/lib/zerotier-one /var/lib/zerotier-one
 
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update\
-    && apk add --no-cache npm 
+    && apk add --no-cache npm zerotier-one
+
+VOLUME [ "/app","/var/lib/zerotier-one" ]
 
 CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
