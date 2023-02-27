@@ -1,3 +1,9 @@
+
+QQ交流群：
+
+![image](https://user-images.githubusercontent.com/51899048/221509739-7d039726-34a1-4174-b85f-2d0cbf07bd31.png)
+
+
 - [1：ZeroTier 介绍](#1zerotier-介绍)
 - [2：为什么要自建PLANET 服务器](#2为什么要自建planet-服务器)
 - [3：开始安装](#3开始安装)
