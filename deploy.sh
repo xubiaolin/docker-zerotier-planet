@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ex
 
 imageName="zerotier-planet"
 
