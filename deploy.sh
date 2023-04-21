@@ -81,6 +81,7 @@ function upgrade() {
 echo "欢迎使用zerotier-planet脚本，请选择需要执行的操作："
 echo "1. 安装"
 echo "2. 更新"
+echo "3. 复制planet文件到当前目录"
 echo "其他任意键退出"
 
 # 读取用户输入
@@ -95,6 +96,10 @@ case "$choice" in
 2)
   echo "您选择了更新功能"
   upgrade
+  ;;
+3)
+  echo "导出planet到当前目录"
+  docker cp zerotier-planet:/app/bin/planet .
   ;;
 *)
   echo "谢谢使用！"
