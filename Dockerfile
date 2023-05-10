@@ -35,7 +35,7 @@ RUN cd /app && git clone -v https://ghproxy.markxu.online/https://github.com/zer
     && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
     && echo "ZT_TOKEN=$TOKEN">> /app/ztncui/src/.env 
 
-FROM alpine:latest
+FROM alpine:3.17
 WORKDIR /app
 
 COPY --from=builder /app/ztncui /app/ztncui
