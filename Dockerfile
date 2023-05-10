@@ -1,4 +1,4 @@
-FROM alpine:latest as builder
+FROM alpine:3.17 as builder
 
 ARG ZT_PORT
 
