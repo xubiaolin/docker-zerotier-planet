@@ -3,7 +3,7 @@
 imageName="zerotier-planet"
 
 function install() {
-  read -p "请输入要使用的端口号（数字）: " port
+  read -p "请输入zerotier-planet要使用的端口号,例如9994（数字）: " port
 
   # 确保端口号是数字
   while ! [[ "$port" =~ ^[0-9]+$ ]]; do
