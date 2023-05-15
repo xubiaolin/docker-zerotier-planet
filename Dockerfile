@@ -15,7 +15,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     && cd /app/ztncui/src \
     && cp /app/patch/binding.gyp .\
     && echo "开始配置npm环境"\
-    && npm config set registry http://registry.npmmirror.com\
+    && npm config set registry https://registry.npmmirror.com\
     && npm install -g --progress --verbose node-gyp\
     && npm install \
     && echo 'HTTP_PORT=3443' >.env \
