@@ -37,10 +37,11 @@ function install() {
   if [[ -n "$ipv6" ]]; then
     ipv6_entry="${ipv6}/${port}"
     endpoints="[\"$ipv4_entry\",\"$ipv6_entry\"]"
-  else
+    echo "[{\"stableEndpoints\":$endpoints}]" > ./patch/patch.json
+  elif [[ -n "$ipv4" ]]; then
     endpoints="[\"$ipv4_entry\"]"
+    echo "[{\"stableEndpoints\":$endpoints}]" > ./patch/patch.json
   fi
-  echo "{\"stableEndpoints\":$endpoints}" > ./patch/patch.json
 
   echo "配置内容为:"
   echo "`cat ./patch/patch.json`"
@@ -92,9 +93,12 @@ case "$choice" in
 1)
   echo "您选择了安装功能"
   install
+  docker cp zerotier-planet:/var/lib/zerotier-one/ ./pztier/
   ;;
 2)
   echo "您选择了更新功能"
+  [ -f ./pztier/zerotier-one/moon.json ] && docker cp ./pztier/zerotier-one/moon.json zerotier-planet:/var/lib/zerotier-one/moon.json
+  [ -f ./pztier/zerotier-one/planet ] && docker cp ./pztier/zerotier-one/planet zerotier-planet:/var/lib/zerotier-one/planet
   upgrade
   ;;
 3)
@@ -102,7 +106,7 @@ case "$choice" in
   docker cp zerotier-planet:/app/bin/planet .
   ;;
 *)
-  echo "谢谢使用！"
+  echo "多planet:各planet执行完1之后,将各planet的stableendpoint合并到moon.json中,编辑好patch.json,planet0上重新执行1,将moon.json planet放到其他各planet中,重新执行2.谢谢使用！"
   exit 0
   ;;
 esac
