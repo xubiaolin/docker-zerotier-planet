@@ -204,7 +204,7 @@ PS C:\Windows\system32>
 管理面板的SSL支持需要自行配置，参考Nginx配置如下：
 ```
 upstream zerotier {
-  server 127.0.0.1: 3443;
+  server 127.0.0.1:3443;
 }
 
 server {
@@ -225,7 +225,7 @@ server {
 
 
   location / {
-    proxy_pass http: //zerotier;
+    proxy_pass http://zerotier;
     proxy_set_header HOST $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Real-IP $remote_addr;
@@ -236,7 +236,7 @@ server {
 server {
     listen       80;
     server_name  {CUSTOME_DOMAIN}; //替换自己的域名
-    return 301 https: //$server_name$request_uri;
+    return 301 https://$server_name$request_uri;
 }
 ```
 
