@@ -49,7 +49,7 @@ function deploy() {
 
     echo "启动服务"
     for i in $(lsof -i:9993 -t); do kill -2 $i; done
-    docker run -d --network host --name $imageName --restart unless-stopped --volume ztncui:/opt/key-networks/ztncui/etc/ --volume zt1:/var/lib/zerotier-one/ $imageName 
+    docker run -d --network host --name $imageName --restart unless-stopped --volume ./ztncui:/opt/key-networks/ztncui/etc/ --volume ./zt1:/var/lib/zerotier-one/ $imageName 
     docker cp zerotier-planet:/app/bin/planet /opt/planet
 }
 
@@ -77,8 +77,8 @@ function migrate() {
     read remote_user
     
     docker stop $imageName
-    docker run --rm --volume ztncui:/from alpine ash -c "cd /from ; tar -cf - . " | ssh $remote_user@$remote_ip -p $remote_port 'sudo docker run --rm -i --volume ztncui:/to alpine ash -c "cd /to ; tar -xpvf - " '
-    docker run --rm --volume zt1:/from alpine ash -c "cd /from ; tar -cf - . " | ssh $remote_user@$remote_ip -p $remote_port  'sudo docker run --rm -i --volume zt1:/to alpine ash -c "cd /to ; tar -xpvf - " '
+    docker run --rm --volume ./ztncui:/from alpine ash -c "cd /from ; tar -cf - . " | ssh $remote_user@$remote_ip -p $remote_port 'sudo docker run --rm -i --volume ./ztncui:/to alpine ash -c "cd /to ; tar -xpvf - " '
+    docker run --rm --volume ./zt1:/from alpine ash -c "cd /from ; tar -cf - . " | ssh $remote_user@$remote_ip -p $remote_port  'sudo docker run --rm -i --volume ./zt1:/to alpine ash -c "cd /to ; tar -xpvf - " '
     
     echo "----------------------------"
     echo 迁移完成，请在对端主机执行部署命令：
