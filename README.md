@@ -248,7 +248,7 @@ server {
 
 
   location / {
-    proxy_pass http: //zerotier;
+    proxy_pass http://zerotier;
     proxy_set_header HOST $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Real-IP $remote_addr;
@@ -259,7 +259,7 @@ server {
 server {
     listen       80;
     server_name  {CUSTOME_DOMAIN}; //替换自己的域名
-    return 301 https: //$server_name$request_uri;
+    return 301 https://$server_name$request_uri;
 }
 ```
 
