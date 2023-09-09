@@ -253,10 +253,31 @@ A: 该项目剔除了官方服务器，只保留了自定义的Planet节点
 ## 4. Q：我更换了IP需要怎么处理？
 A: 如果IP更换了，则需要重新部署，相当于全新部署
 
+## 5. Q:PVE没有创建网卡
+A: 需要修改lxc容器的配置，同时lxc容器需要取消勾选`无特权`
+
+配置文件位置在`/etc/pve/lxc/{ID}.conf`
+
+在Proxmox7.0之前的版本添加以下内容：
+```
+lxc.cgroup.devices.allow: c 10:200 rwm
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+```
+在Proxmox7.0之后的版本添加以下内容：
+```
+lxc.cgroup2.devices.allow: c 10:200 rwm
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+```
+
 
 # 风险声明
 
 本项目仅供学习和研究使用，不鼓励用于商业用途。我们不对任何因使用本项目而导致的任何损失负责。
+
+
+# 类似项目
+- [wireguard一键脚本](https://github.com/xubiaolin/wireguard-onekey)
+
 
 # 捐助和支持
 
