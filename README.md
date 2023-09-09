@@ -23,12 +23,14 @@ QQ交流群：
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
 - [参考链接](#参考链接)
 - [5. 管理面板SSL配置](#5-管理面板ssl配置)
-- [6:Q\&A:](#6qa)
-  - [1. Q：为什么我ping不通目标机器？](#1-q为什么我ping不通目标机器)
-  - [2. Q：IOS客户端怎么用？](#2-qios客户端怎么用)
-  - [3. Q: 为什么看不到官方的Planet](#3-q-为什么看不到官方的planet)
-  - [4. Q：我更换了IP需要怎么处理？](#4-q我更换了ip需要怎么处理)
-  - [5. Q: PVE lxc 容器没有创建网卡](#5-q-pve-lxc-容器没有创建网卡)
+- [6. 卸载](#6-卸载)
+- [7: Q\&A：](#7-qa)
+  - [1. 为什么我ping不通目标机器？](#1-为什么我ping不通目标机器)
+  - [2. IOS客户端怎么用？](#2-ios客户端怎么用)
+  - [3. 为什么看不到官方的Planet](#3-为什么看不到官方的planet)
+  - [4. 我更换了IP需要怎么处理？](#4-我更换了ip需要怎么处理)
+  - [5. PVE lxc 容器没有创建网卡](#5-pve-lxc-容器没有创建网卡)
+  - [6. 管理后台忘记密码怎么办：](#6-管理后台忘记密码怎么办)
 - [风险声明](#风险声明)
 - [类似项目](#类似项目)
 - [捐助和支持](#捐助和支持)
@@ -260,21 +262,27 @@ server {
 }
 ```
 
-# 6:Q&A:
-## 1. Q：为什么我ping不通目标机器？
-A：请检查防火墙设置，`Windows` 系统需要允许 `ICMP` 入站，`Linux` 同理
+# 6. 卸载
+```bash
+docker rm -f zerotier-planet
+```
 
-## 2. Q：IOS客户端怎么用？
-A：iOS 客户端插件在这里，设备需要越狱： https://github.com/lemon4ex/ZeroTieriOSFix
+# 7: Q&A：
+## 1. 为什么我ping不通目标机器？
+请检查防火墙设置，`Windows` 系统需要允许 `ICMP` 入站，`Linux` 同理
 
-## 3. Q: 为什么看不到官方的Planet
-A: 该项目剔除了官方服务器，只保留了自定义的Planet节点
+## 2. IOS客户端怎么用？
+iOS 客户端插件在这里，设备需要越狱： https://github.com/lemon4ex/ZeroTieriOSFix
 
-## 4. Q：我更换了IP需要怎么处理？
-A: 如果IP更换了，则需要重新部署，相当于全新部署
+## 3. 为什么看不到官方的Planet
+该项目剔除了官方服务器，只保留了自定义的Planet节点
 
-## 5. Q: PVE lxc 容器没有创建网卡
-A: 需要修改lxc容器的配置，同时lxc容器需要取消勾选`无特权`
+## 4. 我更换了IP需要怎么处理？
+如果IP更换了，则需要重新部署，相当于全新部署
+
+## 5. PVE lxc 容器没有创建网卡
+需要修改lxc容器的配置，同时lxc容器需要取消勾选`无特权`
+
 
 配置文件位置在`/etc/pve/lxc/{ID}.conf`
 
@@ -288,6 +296,9 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 lxc.cgroup2.devices.allow: c 10:200 rwm
 lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
+
+## 6. 管理后台忘记密码怎么办：
+建议重装
 
 
 # 风险声明
