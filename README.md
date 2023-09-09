@@ -54,10 +54,23 @@ Zerotier 在多设备之间建立了一个 `Peer to Peer VPN（P2PVPN）` 连接
 
 # 3：开始安装
 ##  3.1：准备条件
-- 具有公网 `ip` 的服务器（需要开放 3443/tcp 端口，9993/tcp 端口，9993/udp 端口）
-- 安装 `docker`
+- 具有公网 `ip` 的服务器（需要开放 3443/tcp 端口，9993/tcp 端口，9993/udp 端口）[这里的9993需要你根据实际情况替换]
+- 安装 `docker`、`git`，
 
-ps:如果是centos，安装docker请使用`yum install docker-ce`
+### 3.1.1 安装git
+```bash
+#debian/ubuntu等
+apt update && apt install git -y 
+
+#centos等
+yum update && yum install git -y 
+```
+
+### 3.1.2 安装docker
+```bash
+curl -fsSL https://get.docker.com |bash 
+```
+
   
 ## 3.2：下载项目源码
 ```
@@ -204,7 +217,7 @@ PS C:\Windows\system32>
 管理面板的SSL支持需要自行配置，参考Nginx配置如下：
 ```
 upstream zerotier {
-  server 127.0.0.1: 3443;
+  server 127.0.0.1:3443;
 }
 
 server {

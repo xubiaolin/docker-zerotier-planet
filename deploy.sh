@@ -57,6 +57,7 @@ function install() {
   docker build --no-cache --build-arg ZT_PORT=$port --network host -t $imageName .
   if [ $? -ne 0 ]; then
     echo "镜像打包失败，请重试"
+    echo "国内机器打包容易失败，请多试几次"
     exit 1
   fi
 
