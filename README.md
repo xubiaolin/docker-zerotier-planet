@@ -34,6 +34,7 @@ QQ交流群：
 - [开发计划](#开发计划)
 - [风险声明](#风险声明)
 - [类似项目](#类似项目)
+- [推广](#推广)
 - [捐助和支持](#捐助和支持)
 
 
@@ -305,6 +306,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 🥰您的捐助可以让开发计划的速度更快🥰
 - [ ] 多planet支持
 - [ ] 3443端口自定义支持
+- [ ] planet和controller分离部署
 
 
 # 风险声明
@@ -315,6 +317,11 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 # 类似项目
 - [wireguard一键脚本](https://github.com/xubiaolin/wireguard-onekey)
 
+# 推广
+京东云主机，安全稳定，性能强劲，新客下单专享特惠
+
+【金秋大促】爆款云主机2核2G3M低至66元首年，优惠直达链接:
+https://daili.jd.com/s?linkNo=XF2RVUILETHMCX7BGKAFQHBG2JUUE7S76XQIWTR74W3LQQS6OLTQM5XEITBWPC4WZA6UGATAQLY674QVVELZCIABN4
 
 # 捐助和支持
 
