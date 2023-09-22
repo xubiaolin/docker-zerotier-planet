@@ -1,5 +1,7 @@
 import os
 import json
+import re
+from socket import getaddrinfo
 from re import M
 
 
@@ -13,30 +15,34 @@ def get_patch():
     with open("/app/patch/patch.json", "r") as f:
         return json.load(f)
 
+def replace_domain(url):
+    domain = re.search(r'\w[\w\.-]+', url).group() 
+    ip = getaddrinfo(domain, 80)[0][-1][0]
+    return url.replace(domain, ip)
 
 def patch():
-    moon = get_moon()
-    patch = get_patch()
+    moons = get_moon()
+    patches = get_patch()
+    text = ''
+    for moon, patch in zip(moons["roots"], patches):
+        identity = moon["identity"]
+        patch["stableEndpoints"] = [replace_domain(url) for url in patch["stableEndpoints"]]
+        moon["stableEndpoints"] = patch["stableEndpoints"]
 
-    identity = moon["roots"][0]["identity"]
-    moon["roots"][0]["stableEndpoints"] = patch["stableEndpoints"]
+        # 修改world
+        text += f"""
+        roots.push_back(World::Root());
+        roots.back().identity = Identity("{identity}");
+        """
 
+        for i in patch["stableEndpoints"]:
+            text += f'\n        roots.back().stableEndpoints.push_back(InetAddress("{i}"));'
     # 修改moon  
     with open("/var/lib/zerotier-one/moon.json", "w") as f:
-        f.write(json.dumps(moon,sort_keys=True, indent=2))
+        f.write(json.dumps(moons,sort_keys=True, indent=2))
 
     print("修改后的moon")
-    print(moon)
-
-    # 修改world
-    moon["roots"][0]["stableEndpoints"] = get_patch()["stableEndpoints"]
-    text = f"""// Los Angeles
-	roots.push_back(World::Root());
-	roots.back().identity = Identity("{identity}");
-"""
-
-    for i in get_patch()["stableEndpoints"]:
-        text += f'\n        roots.back().stableEndpoints.push_back(InetAddress("{i}"));'
+    print(moons)
 
     # 生成文件
     with open("/app/patch/mkworld.cpp", "r") as cpp:
