@@ -84,9 +84,16 @@ curl -fsSL https://get.docker.com |bash
 
   
 ## 3.2：下载项目源码
+官方地址
 ```
 git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 ```
+
+加速地址
+```
+git clone https://ghproxy.markxu.online/https://github.com/xubiaolin/docker-zerotier-planet.git
+```
+
 ## 3.3：执行安装脚本
 进入项目目录
 ```
