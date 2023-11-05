@@ -10,6 +10,7 @@ QQ交流群：
   - [3.1：准备条件](#31准备条件)
     - [3.1.1 安装git](#311-安装git)
     - [3.1.2 安装docker](#312-安装docker)
+    - [3.1.3 启动docker](#313-启动docker)
   - [3.2：下载项目源码](#32下载项目源码)
   - [3.3：执行安装脚本](#33执行安装脚本)
   - [3.4 下载 `planet` 文件](#34-下载-planet-文件)
@@ -82,6 +83,10 @@ yum update && yum install git -y
 curl -fsSL https://get.docker.com |bash 
 ```
 
+### 3.1.3 启动docker
+```bash
+service docker start
+```
   
 ## 3.2：下载项目源码
 官方地址
