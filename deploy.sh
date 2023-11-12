@@ -54,7 +54,7 @@ function install() {
 
   echo "打包镜像"
   echo "使用的端口为：${port}"
-  docker build --no-cache --build-arg ZT_PORT=$port --network host -t $imageName .
+  docker build --no-cache --build-arg ZT_PORT=$port -t $imageName .
   if [ $? -ne 0 ]; then
     echo "镜像打包失败，请重试"
     echo "国内机器打包容易失败，请多试几次"
