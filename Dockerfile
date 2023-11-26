@@ -107,20 +107,31 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
     ; cp *.moon /app/dist/ \
     ; echo -e "mkmoonworld success!\n"
 
-
-# make ztncui
-RUN cd /app \
-    && set -x \
-    && apk add --no-cache nodejs make g++ linux-headers npm build-base python3 \
-    && npm config set registry https://registry.npmmirror.com\
-    && npm config get registry\
-    && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp\
-    && cd /app && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
-    && cd ztncui/src\
+#make ztncui 
+RUN mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
+&& apk add --no-cache git python3 npm make g++ zerotier-one linux-headers\
+    && mkdir /app -p &&  cd /app && git clone --progress https://ghproxy.markxu.online/https://github.com/key-networks/ztncui.git\
+    && cd /app/ztncui/src \
     && cp /app/patch/binding.gyp .\
-    && npm install -g node-gyp \
-    && npm install  \
+    && echo "开始配置npm环境"\
+    && npm install -g --progress --verbose node-gyp --registry=https://registry.npmmirror.com\
+    && npm install  --registry=https://registry.npmmirror.com\
     && echo "make ztncui success!"
+
+
+# # make ztncui
+# RUN cd /app \
+#     && set -x \
+#     && apk add --no-cache nodejs make g++ linux-headers npm build-base python3 \
+#     && npm config set registry https://registry.npmmirror.com\
+#     && npm config get registry\
+#     && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp\
+#     && cd /app && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
+#     && cd ztncui/src\
+#     && cp /app/patch/binding.gyp .\
+#     && npm install -g node-gyp \
+#     && npm install  \
+#     && echo "make ztncui success!"
 
 
 # config ztncui
