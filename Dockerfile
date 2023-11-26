@@ -109,7 +109,7 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
 
 #make ztncui 
 RUN mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
-&& apk add --no-cache git python3 npm make g++ zerotier-one linux-headers\
+&& apk add --no-cache git python3 npm make g++  linux-headers\
     && mkdir /app -p &&  cd /app && git clone --progress https://ghproxy.markxu.online/https://github.com/key-networks/ztncui.git\
     && cd /app/ztncui/src \
     && cp /app/patch/binding.gyp .\
