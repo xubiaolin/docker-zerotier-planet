@@ -109,7 +109,7 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
 
 
 # make ztncui
-RUN set -x ;apk add --no-cache nodejs make g++ linux-headers npm build-base python3 \
+RUN cd /app && set -x && apk add --no-cache nodejs make g++ linux-headers npm build-base python3 \
     && npm config set registry https://registry.npmmirror.com\
     && npm config get registry\
     && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
