@@ -53,13 +53,13 @@
 # CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
 # #centos等
 #--------------------------------------------------------------------------
-FROM alpine:3.18  as builder-zt
-ARG GIT_MIRROR='https://ghproxy.markxu.online/'
+FROM alpine:3.16  as builder-zt
 
 ENV IP_ADDR4=''
 ENV IP_ADDR6=''
 ENV ZT_PORT=9994
 ENV TZ=Asia/Shanghai
+ENV GIT_MIRROR='https://ghproxy.markxu.online/'
 
 WORKDIR /app
 ADD . /app
@@ -125,6 +125,13 @@ RUN set -x;cd /app/ztncui/src\
     && cp -v etc/default.passwd etc/passwd\
     && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
     && echo "ZT_TOKEN=$TOKEN">> .env 
+
+FROM alpine:3.16
+ENV TZ=Asia/Shanghai
+
+WORKDIR /app
+COPY --from=builder-zt /app /app
+COPY --from=builder-zt /var/lib/zerotier-one /var/lib/zerotier-one
 
 VOLUME [ "/app/ztncui/etc" ,"/var/lib/zerotier-one"]
 
