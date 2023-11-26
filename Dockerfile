@@ -53,7 +53,7 @@
 # CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
 # #centos等
 #--------------------------------------------------------------------------
-FROM alpine:3.18  as builder-zt
+FROM xubiaolin/zerotier-one:1.12.2 as builder-zt
 
 ENV IP_ADDR4=''
 ENV IP_ADDR6=''
@@ -62,28 +62,31 @@ ENV TZ=Asia/Shanghai
 ENV GIT_MIRROR='https://ghproxy.markxu.online/'
 
 WORKDIR /app
-ADD . /app
+# ADD . /app
 
-# make zerotier-one
-RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories\
-    && apk update\
-    && apk add --no-cache build-base git linux-headers rust cargo pkgconfig openssl-dev curl jq\
-    && mkdir -p $HOME/.cargo \
-    && echo '[source.crates-io]' > $HOME/.cargo/config.toml \
-    && echo 'replace-with = "ustc"' >> $HOME/.cargo/config.toml \
-    && echo '[source.ustc]' >> $HOME/.cargo/config.toml \
-    && echo 'registry = "https://mirrors.ustc.edu.cn/crates.io-index"' >> $HOME/.cargo/config.toml\
-    && git clone ${GIT_MIRROR}https://github.com/zerotier/ZeroTierOne.git --depth 1\
-    && cd ZeroTierOne\
-    && make && make install\
-    && echo "make success!"\
-    ; zerotier-one -d  \
-    ; sleep 5s && ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9\
-    && echo "zerotier-one init success!"
+# # make zerotier-one
+# RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories\
+#     && apk update\
+#     && apk add --no-cache build-base git linux-headers rust cargo pkgconfig openssl-dev curl jq\
+#     && mkdir -p $HOME/.cargo \
+#     && echo '[source.crates-io]' > $HOME/.cargo/config.toml \
+#     && echo 'replace-with = "ustc"' >> $HOME/.cargo/config.toml \
+#     && echo '[source.ustc]' >> $HOME/.cargo/config.toml \
+#     && echo 'registry = "https://mirrors.ustc.edu.cn/crates.io-index"' >> $HOME/.cargo/config.toml\
+#     && git clone ${GIT_MIRROR}https://github.com/zerotier/ZeroTierOne.git --depth 1\
+#     && cd ZeroTierOne\
+#     && make && make install\
+#     && echo "make success!"\
+#     ; zerotier-one -d  \
+#     ; sleep 5s && ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9\
+#     && echo "zerotier-one init success!"
 
 
 # make moon
-RUN set -x ;cd /var/lib/zerotier-one \
+RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories\
+    && apk update\
+    && apk add --no-cache build-base git linux-headers curl jq;\
+    cd /var/lib/zerotier-one \
     ; zerotier-idtool initmoon identity.public >moon.json \
     ; if [ -z "$IP_ADDR4" ]; then IP_ADDR4=$(curl -s https://ipv4.icanhazip.com/); fi\
     ; if [ -z "$IP_ADDR6" ]; then IP_ADDR6=$(curl -s https://ipv6.icanhazip.com/); fi\
