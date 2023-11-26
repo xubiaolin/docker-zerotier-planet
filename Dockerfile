@@ -110,12 +110,13 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
 
 # make ztncui
 RUN set -x ;apk add --no-cache nodejs npm python3 \
-    && npm config set registry https://registry.npm.taobao.org\
+    && npm config set registry https://registry.npmmirror.com\
     && npm config get registry\
     && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
     && cd ztncui/src\
-    && npm install -g node-gyp\
-    && npm install --python=/usr/bin/python3\
+    && echo '{"targets":[{"target_name":"binding","sources":["/usr/bin/node"]}]}'>binding.gyp\
+    && npm install -g node-gyp \
+    && npm install  \
     && npm install png\
     && echo "make ztncui success!"
 
