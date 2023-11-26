@@ -65,7 +65,7 @@ WORKDIR /app
 ADD . /app
 
 # make zerotier-one
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories\
+RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories\
     && apk update\
     && apk add --no-cache build-base git linux-headers rust cargo pkgconfig openssl-dev curl jq\
     && mkdir -p $HOME/.cargo \
@@ -83,7 +83,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
 
 
 # make moon
-RUN cd /var/lib/zerotier-one \
+RUN set -x ;cd /var/lib/zerotier-one \
     ; zerotier-idtool initmoon identity.public >moon.json \
     ; if [ -z "$IP_ADDR4" ]; then IP_ADDR4=$(curl -s https://ipv4.icanhazip.com/); fi\
     ; if [ -z "$IP_ADDR6" ]; then IP_ADDR6=$(curl -s https://ipv6.icanhazip.com/); fi\
@@ -106,7 +106,7 @@ RUN cd /var/lib/zerotier-one \
 
 
 # make ztncui
-RUN apk add --no-cache nodejs npm python3\
+RUN set -x ;apk add --no-cache nodejs npm python3\
     && npm config set registry https://registry.npm.taobao.org\
     && npm config get registry\
     && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
@@ -116,7 +116,7 @@ RUN apk add --no-cache nodejs npm python3\
 
 
 # config ztncui
-RUN cd /app/ztncui/src\
+RUN set -x;cd /app/ztncui/src\
     &&echo 'HTTP_PORT=3443' >.env \
     && echo 'NODE_ENV=production' >>.env \
     && echo 'HTTP_ALL_INTERFACES=true' >>.env \
