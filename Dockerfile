@@ -53,7 +53,7 @@
 # CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
 # #centos等
 #--------------------------------------------------------------------------
-FROM alpine:3.17  as builder-zt
+FROM alpine:3.18  as builder-zt
 
 ENV IP_ADDR4=''
 ENV IP_ADDR6=''
@@ -126,7 +126,7 @@ RUN set -x;cd /app/ztncui/src\
     && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
     && echo "ZT_TOKEN=$TOKEN">> .env 
 
-FROM alpine:3.17
+FROM alpine:3.18
 ENV TZ=Asia/Shanghai
 
 WORKDIR /app
