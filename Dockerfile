@@ -109,11 +109,12 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
 
 
 # make ztncui
-RUN set -x ;apk add --no-cache nodejs npm python3\
+RUN set -x ;apk add --no-cache nodejs npm python3 \
     && npm config set registry https://registry.npm.taobao.org\
     && npm config get registry\
     && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
     && cd ztncui/src\
+    && npm install -g node-gyp\
     && npm install --python=/usr/bin/python3\
     && echo "make ztncui success!"
 
