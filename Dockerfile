@@ -109,9 +109,10 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
 
 
 # make ztncui
-RUN set -x ;apk add --no-cache nodejs npm python3 \
+RUN set -x ;apk add --no-cache nodejs make g++ linux-headers npm python3 \
     && npm config set registry https://registry.npmmirror.com\
     && npm config get registry\
+    && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
     && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
     && cd ztncui/src\
     && echo '{"targets":[{"target_name":"binding","sources":["/usr/bin/node"]}]}'>binding.gyp\
