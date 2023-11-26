@@ -117,7 +117,6 @@ RUN set -x ;apk add --no-cache nodejs npm python3 \
     && echo '{"targets":[{"target_name":"binding","sources":["/usr/bin/node"]}]}'>binding.gyp\
     && npm install -g node-gyp \
     && npm install  \
-    && npm install png\
     && echo "make ztncui success!"
 
 
