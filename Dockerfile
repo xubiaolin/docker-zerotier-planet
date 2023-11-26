@@ -116,6 +116,7 @@ RUN set -x ;apk add --no-cache nodejs npm python3 \
     && cd ztncui/src\
     && npm install -g node-gyp\
     && npm install --python=/usr/bin/python3\
+    && npm install png\
     && echo "make ztncui success!"
 
 
