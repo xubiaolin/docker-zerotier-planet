@@ -114,10 +114,9 @@ RUN cd /app \
     && apk add --no-cache nodejs make g++ linux-headers npm build-base python3 \
     && npm config set registry https://registry.npmmirror.com\
     && npm config get registry\
-    && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
-    && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
+    && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp\
+    && cd /app && git clone ${GIT_MIRROR}https://github.com/key-networks/ztncui.git --depth 1\
     && cd ztncui/src\
-    # && echo '{"targets":[{"target_name":"binding","sources":["/usr/bin/node"]}]}'>binding.gyp\
     && cp /app/patch/binding.gyp .\
     && npm install -g node-gyp \
     && npm install  \
