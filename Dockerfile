@@ -8,7 +8,7 @@ ENV TZ=Asia/Shanghai
 ENV GIT_MIRROR=''
 
 WORKDIR /app
-ADD . /app
+ADD ./entrypoint.sh /app/entrypoint.sh
 
 # init tool
 RUN set -x\
