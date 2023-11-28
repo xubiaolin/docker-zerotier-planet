@@ -1,4 +1,4 @@
-FROM alpine:3.17 as builder
+FROM alpine:3.14 as builder
 
 ENV IP_ADDR4=''
 ENV IP_ADDR6=''
@@ -73,7 +73,7 @@ RUN set -x \
     && echo "make ztncui success!"
 
 # 使用 Alpine Linux 3.17 作为最终镜像
-FROM alpine:3.17
+FROM alpine:3.14
 WORKDIR /app
 
 # 从构建阶段复制文件
