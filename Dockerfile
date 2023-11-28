@@ -183,12 +183,9 @@ WORKDIR /app
 # make zerotier-one
 RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories\
     && apk update\
-    && apk add --no-cache build-base git linux-headers rust cargo pkgconfig openssl-dev curl jq\
-    && mkdir -p $HOME/.cargo \
-    && echo '[source.crates-io]' > $HOME/.cargo/config.toml \
-    && echo 'replace-with = "ustc"' >> $HOME/.cargo/config.toml \
-    && echo '[source.ustc]' >> $HOME/.cargo/config.toml \
-    && echo 'registry = "https://mirrors.ustc.edu.cn/crates.io-index"' >> $HOME/.cargo/config.toml\
+    && apk add --no-cache build-base git linux-headers pkgconfig openssl-dev curl jq gcc g++\
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
+    && source "$HOME/.cargo/env"\
     && git clone ${GIT_MIRROR}https://github.com/zerotier/ZeroTierOne.git --depth 1\
     && cd ZeroTierOne\
     && make && make install\
@@ -224,10 +221,19 @@ RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /et
 
 
 #make ztncui 
-RUN apk add --no-cache git python3 npm make g++  linux-headers\
+RUN set -x \
+    && apk add --no-cache git python3 make g++  linux-headers\
+    && cd /app \
+    && wget https://unofficial-builds.nodejs.org/download/release/v16.20.2/node-v16.20.2-linux-x64-musl.tar.xz\
+    && tar -xvf node-v16.20.2-linux-x64-musl.tar.xz\
+    && mv node-v16.20.2-linux-x64-musl /usr/local/lib/nodejs \
+    && echo 'export PATH=/usr/local/lib/nodejs/bin:$PATH' >> /etc/profile \
+    && source /etc/profile \
+    && node -v && npm -v \
     && mkdir /app -p &&  cd /app && git clone --progress https://ghproxy.markxu.online/https://github.com/key-networks/ztncui.git\
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
+    && npm install -g node-gyp\
     && npm install --python=/usr/bin/python3\
     && echo "make ztncui success!"
 
@@ -242,4 +248,4 @@ RUN set -x;cd /app/ztncui/src\
     && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
     && echo "ZT_TOKEN=$TOKEN">> .env 
 
-CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
+CMD /bin/sh -c "source /etc/profile && cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
