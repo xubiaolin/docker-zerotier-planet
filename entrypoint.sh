@@ -56,8 +56,8 @@ echo "stableEndpoints=$stableEndpoints"
 jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json >temp.json && mv temp.json moon.json
 ./zerotier-idtool genmoon moon.json && mkdir -p  moons.d && cp ./*.moon ./moons.d
 
-wget "$https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
-chmod +x mkmoonworld-x86_64
+wget "https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
+chmod +x ./mkmoonworld-x86_64
 ./mkmoonworld-x86_64 moon.json
 
 mkdir -p /app/dist/
