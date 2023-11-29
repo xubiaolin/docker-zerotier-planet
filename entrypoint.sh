@@ -69,4 +69,5 @@ cp *.moon /app/dist/
 echo -e "mkmoonworld success!\n"
 
 echo "start ztncui and zerotier"
+touch /app/init.flag
 sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p$(cat /app/zerotier-one.port) -d; cd /app/ztncui/src; npm start"
