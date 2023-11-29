@@ -1,11 +1,6 @@
 FROM alpine:3.14 as builder
 
-ENV IP_ADDR4=''
-ENV IP_ADDR6=''
-ENV ZT_PORT=9994
-ENV API_PORT=3443
 ENV TZ=Asia/Shanghai
-ENV GIT_MIRROR=''
 
 WORKDIR /app
 ADD ./entrypoint.sh /app/entrypoint.sh
@@ -20,7 +15,7 @@ RUN set -x\
 RUN set -x\
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
     && source "$HOME/.cargo/env"\
-    && git clone ${GIT_MIRROR}https://github.com/zerotier/ZeroTierOne.git --depth 1\
+    && git clone https://github.com/zerotier/ZeroTierOne.git --depth 1\
     && cd ZeroTierOne\
     && make ZT_SYMLINK=1 \
     && make\
@@ -78,6 +73,11 @@ FROM alpine:3.14
 
 WORKDIR /app
 
+ENV IP_ADDR4=''
+ENV IP_ADDR6=''
+ENV ZT_PORT=9994
+ENV API_PORT=3443
+ENV TZ=Asia/Shanghai
 
 COPY --from=builder /app/ztncui /bak/ztncui
 COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
@@ -88,7 +88,7 @@ COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
-    && apk add --no-cache npm curl
+    && apk add --no-cache npm curl jq
 
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one" ]

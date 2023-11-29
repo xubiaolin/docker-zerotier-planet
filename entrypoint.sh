@@ -3,6 +3,18 @@
 # make moon
 set -x
 
+
+# 判断/app目录下是否有初始化标记文件init.flag，有则直接启动，没有则初始化
+if [ -f "/app/init.flag" ]; then
+    echo "/app/init.flag exists, start directly"
+
+    echo "start ztncui and zerotier"
+    sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p$(cat /app/zerotier-one.port) -d; cd /app/ztncui/src; npm start"
+    return 0
+fi
+
+
+
 mkdir -p /app/ztncui
 if [ "$(ls -A /app/ztncui)" ]; then
     echo "/app/ztncui is not empty, start directly"
@@ -24,7 +36,7 @@ fi
 cd /var/lib/zerotier-one
 echo "start mkmoonworld"
 
-zerotier-idtool initmoon identity.public >moon.json
+./zerotier-idtool initmoon identity.public >moon.json
 
 if [ -z "$IP_ADDR4" ]; then IP_ADDR4=$(curl -s https://ipv4.icanhazip.com/); fi
 if [ -z "$IP_ADDR6" ]; then IP_ADDR6=$(curl -s https://ipv6.icanhazip.com/); fi
@@ -44,9 +56,9 @@ fi
 echo "stableEndpoints=$stableEndpoints"
 
 jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json >temp.json && mv temp.json moon.json
-zerotier-idtool genmoon moon.json && mkdir moons.d && cp ./*.moon ./moons.d
+./zerotier-idtool genmoon moon.json && mkdir -p  moons.d && cp ./*.moon ./moons.d
 
-wget "${GIT_MIRROR}https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
+wget "$https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
 chmod +x mkmoonworld-x86_64
 ./mkmoonworld-x86_64 moon.json
 
