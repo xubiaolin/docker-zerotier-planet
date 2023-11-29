@@ -78,19 +78,20 @@ FROM alpine:3.14
 
 WORKDIR /app
 
-VOLUME [ "/app","/var/lib/zerotier-one" ]
 
-COPY --from=builder /app/ztncui /app/ztncui
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
-COPY --from=builder /app/zerotier-one.port /app/zerotier-one.port
+COPY --from=builder /app/ztncui /bak/ztncui
+COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
-COPY --from=builder /var/lib/zerotier-one /var/lib/zerotier-one
+COPY --from=builder /app/zerotier-one.port /app/zerotier-one.port
+COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
     && apk add --no-cache npm curl
 
+
+VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one" ]
 
 # 设置启动命令
 # CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src; npm start"

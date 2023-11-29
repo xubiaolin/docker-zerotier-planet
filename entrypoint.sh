@@ -3,6 +3,22 @@
 # make moon
 set -x
 
+mkdir -p /app/ztncui
+if [ "$(ls -A /app/ztncui)" ]; then
+    echo "/app/ztncui is not empty, start directly"
+else
+    echo "/app/ztncui is empty, init data"
+    cp -r /bak/ztncui/* /app/ztncui/
+
+mkdir -p /var/lib/zerotier-one
+if [ "$(ls -A /var/lib/zerotier-one)" ]; then
+    echo "/var/lib/zerotier-one is not empty, start directly"
+else
+    echo "/var/lib/zerotier-one is empty, init data"
+    cp -r /bak/zerotier-one/* /var/lib/zerotier-one/
+fi
+
+
 cd /var/lib/zerotier-one
 echo "start mkmoonworld"
 
@@ -31,8 +47,8 @@ zerotier-idtool genmoon moon.json && mkdir moons.d && cp ./*.moon ./moons.d
 wget "${GIT_MIRROR}https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
 chmod +x mkmoonworld-x86_64
 ./mkmoonworld-x86_64 moon.json
-mkdir -p /app/dist/
 
+mkdir -p /app/dist/
 mv world.bin /app/dist/planet
 cp *.moon /app/dist/
 
