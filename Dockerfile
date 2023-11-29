@@ -58,16 +58,7 @@ RUN set -x \
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
     && npm install -g node-gyp\
-    && npm install \
-    && echo "HTTP_PORT=${API_PORT}" >.env \
-    && echo 'NODE_ENV=production' >>.env \
-    && echo 'HTTP_ALL_INTERFACES=true' >>.env \
-    && echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env\
-    && echo "${ZT_PORT}" >/app/zerotier-one.port \
-    && cp -v etc/default.passwd etc/passwd\
-    && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
-    && echo "ZT_TOKEN=$TOKEN">> .env \
-    && echo "make ztncui success!"
+    && npm install 
 
 FROM alpine:3.14
 
@@ -89,7 +80,8 @@ COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
     && apk add --no-cache npm curl jq\
-    && echo "${ZT_PORT}" >/app/zerotier-one.port 
+    && echo "${ZT_PORT}" >/app/zerotier-one.port \
+    && echo ${API_PORT}> /app/ztncui.port 
 
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one" ]

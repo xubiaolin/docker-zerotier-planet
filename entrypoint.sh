@@ -11,8 +11,6 @@ if [ -f "/app/init.flag" ]; then
     return 0
 fi
 
-
-
 mkdir -p /app/ztncui
 if [ "$(ls -A /app/ztncui)" ]; then
     echo "/app/ztncui is not empty, start directly"
@@ -21,7 +19,6 @@ else
     cp -r /bak/ztncui/* /app/ztncui/
 fi
 
-
 mkdir -p /var/lib/zerotier-one
 if [ "$(ls -A /var/lib/zerotier-one)" ]; then
     echo "/var/lib/zerotier-one is not empty, start directly"
@@ -29,7 +26,6 @@ else
     echo "/var/lib/zerotier-one is empty, init data"
     cp -r /bak/zerotier-one/* /var/lib/zerotier-one/
 fi
-
 
 cd /var/lib/zerotier-one
 echo "start mkmoonworld"
@@ -41,7 +37,12 @@ if [ -z "$IP_ADDR6" ]; then IP_ADDR6=$(curl -s https://ipv6.icanhazip.com/); fi
 
 echo "IP_ADDR4=$IP_ADDR4"
 echo "IP_ADDR6=$IP_ADDR6"
+
+ZT_PORT=$(cat /app/zerotier-one.port)
+API_PORT=$(cat /app/ztncui.port)
+
 echo "ZT_PORT=$ZT_PORT"
+echo "API_PORT=$API_PORT"
 
 if [ -z "$IP_ADDR4" ]; then stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"; fi
 if [ -z "$IP_ADDR6" ]; then stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"; fi
@@ -54,7 +55,7 @@ fi
 echo "stableEndpoints=$stableEndpoints"
 
 jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json >temp.json && mv temp.json moon.json
-./zerotier-idtool genmoon moon.json && mkdir -p  moons.d && cp ./*.moon ./moons.d
+./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
 
 wget "https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
 chmod +x ./mkmoonworld-x86_64
@@ -63,8 +64,17 @@ chmod +x ./mkmoonworld-x86_64
 mkdir -p /app/dist/
 mv world.bin /app/dist/planet
 cp *.moon /app/dist/
-
 echo -e "mkmoonworld success!\n"
+
+echo "config ztncui"
+cd /app/ztncui/src
+echo "HTTP_PORT=${API_PORT}" >.env &&
+    echo 'NODE_ENV=production' >>.env &&
+    echo 'HTTP_ALL_INTERFACES=true' >>.env &&
+    echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env && echo "${ZT_PORT}" >/app/zerotier-one.port &&
+    cp -v etc/default.passwd etc/passwd && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) &&
+    echo "ZT_TOKEN=$TOKEN" >>.env &&
+    echo "make ztncui success!"
 
 echo "start ztncui and zerotier"
 touch /app/init.flag
