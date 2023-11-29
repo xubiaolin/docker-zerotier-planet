@@ -75,7 +75,10 @@ RUN set -x \
     && echo "make ztncui success!"
 
 FROM alpine:3.14
+
 WORKDIR /app
+
+VOLUME [ "/app","/var/lib/zerotier-one" ]
 
 COPY --from=builder /app/ztncui /app/ztncui
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
@@ -88,7 +91,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     && apk update \
     && apk add --no-cache npm curl
 
-VOLUME [ "/app","/var/lib/zerotier-one" ]
 
 # 设置启动命令
 # CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src; npm start"
