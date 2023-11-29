@@ -3,8 +3,6 @@
 # make moon
 set -x
 
-
-# 判断/app目录下是否有初始化标记文件init.flag，有则直接启动，没有则初始化
 if [ -f "/app/init.flag" ]; then
     echo "/app/init.flag exists, start directly"
 
