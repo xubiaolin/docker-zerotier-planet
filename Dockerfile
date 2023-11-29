@@ -89,7 +89,7 @@ COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
     && apk add --no-cache npm curl jq\
-    && echo "${ZT_PORT}}" >/app/zerotier-one.port 
+    && echo "${ZT_PORT}" >/app/zerotier-one.port 
 
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one" ]
