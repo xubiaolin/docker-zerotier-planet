@@ -9,6 +9,8 @@ if [ "$(ls -A /app/ztncui)" ]; then
 else
     echo "/app/ztncui is empty, init data"
     cp -r /bak/ztncui/* /app/ztncui/
+fi
+
 
 mkdir -p /var/lib/zerotier-one
 if [ "$(ls -A /var/lib/zerotier-one)" ]; then
