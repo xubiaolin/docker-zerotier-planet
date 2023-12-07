@@ -1,8 +1,7 @@
 TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
-QQ交流群：
+QQ交流群：785620313
 
-![image](https://user-images.githubusercontent.com/51899048/221509739-7d039726-34a1-4174-b85f-2d0cbf07bd31.png)
 
 
 - [0: 广告](#0-广告)
