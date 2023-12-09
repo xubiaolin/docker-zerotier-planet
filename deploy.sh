@@ -3,11 +3,10 @@
 imageName="zerotier-planet"
 
 function install() {
-  read -p "请输入zerotier-planet要使用的端口号,例如9994（数字）: " port
-
-  # 确保端口号是数字
-  while ! [[ "$port" =~ ^[0-9]+$ ]]; do
-  read -p "端口号必须是数字，请重新输入端口号: " port
+  read -p "请输入zerotier-planet要使用的端口号,例如9994: " ZT_PORT
+  #port必须是数字
+  while [[ ! "$ZT_PORT" =~ ^[0-9]+$ ]]; do
+    read -p "端口号必须是数字，请重新输入: " ZT_PORT
   done
 
   read -p "是否自动获取公网IP地址？（y/n）" use_auto_ip

@@ -4,6 +4,7 @@ ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 ADD ./entrypoint.sh /app/entrypoint.sh
+ADD ./http_server.js /app/http_server.js
 
 # init tool
 RUN set -x\
@@ -15,7 +16,7 @@ RUN set -x\
 RUN set -x\
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
     && source "$HOME/.cargo/env"\
-    && git clone https://github.com/zerotier/ZeroTierOne.git --depth 1\
+    && git clone https://github.com/zerotier/ZeroTierOne.git\
     && cd ZeroTierOne\
     && make ZT_SYMLINK=1 \
     && make\
@@ -24,30 +25,6 @@ RUN set -x\
     ; zerotier-one -d  \
     ; sleep 5s && ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9\
     && echo "zerotier-one init success!"
-
-
-# make moon
-# RUN set -x \
-#     && cd /var/lib/zerotier-one \
-#     ; zerotier-idtool initmoon identity.public >moon.json \
-#     ; if [ -z "$IP_ADDR4" ]; then IP_ADDR4=$(curl -s https://ipv4.icanhazip.com/); fi\
-#     ; if [ -z "$IP_ADDR6" ]; then IP_ADDR6=$(curl -s https://ipv6.icanhazip.com/); fi\
-#     ; echo "IP_ADDR4=$IP_ADDR4"\
-#     ; echo "IP_ADDR6=$IP_ADDR6"\
-#     ; if [ -z "$IP_ADDR4" ]; then stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"; fi \
-#     ; if [ -z "$IP_ADDR6" ]; then stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"; fi \
-#     ; if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ]; then stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"; fi \
-#     ; if [ -z "$IP_ADDR4" ] && [ -z "$IP_ADDR6" ]; then echo "IP_ADDR4 and IP_ADDR6 are both empty!"; exit 1; fi\
-#     ; echo "stableEndpoints=$stableEndpoints"\
-#     ; jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json\
-#     ; zerotier-idtool genmoon moon.json && mkdir moons.d && cp ./*.moon ./moons.d\
-#     ; wget "${GIT_MIRROR}https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"\
-#     && chmod +x mkmoonworld-x86_64\
-#     ; ./mkmoonworld-x86_64 moon.json\
-#     ; mkdir -p /app/dist/ \
-#     ; mv world.bin /app/dist/planet\
-#     ; cp *.moon /app/dist/ \
-#     ; echo -e "mkmoonworld success!\n"
 
 
 #make ztncui 
@@ -66,8 +43,12 @@ WORKDIR /app
 
 ENV IP_ADDR4=''
 ENV IP_ADDR6=''
+
 ENV ZT_PORT=9994
 ENV API_PORT=3443
+ENV FILE_SERVER_PORT=3000
+
+ENV FILE_KEY=''
 ENV TZ=Asia/Shanghai
 
 COPY --from=builder /app/ztncui /bak/ztncui
@@ -75,6 +56,7 @@ COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
+COPY --from=builder /app/http_server.js /app/http_server.js
 
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
@@ -85,7 +67,4 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one" ]
 
-# 设置启动命令
-# CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src; npm start"
-# ENTRYPOINT [ "/app/entrypoint.sh" ]
 CMD ["/bin/sh","/app/entrypoint.sh"]
