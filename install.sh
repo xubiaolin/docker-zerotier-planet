@@ -128,6 +128,11 @@ function update(){
     docker pull xubiaolin/zerotier-planet:latest
     docker rm myztplanet
 
+    if [ ! -d "/data/zerotier" ]; then
+        echo "目录/data/zerotier不存在，无法更新"
+        exit 1 
+    fi
+
     ZT_PORT=$(cat /data/zerotier/ports/zerotier-one.port)
     API_PORT=$(cat /data/zerotier/ports/ztncui.port)
     FILE_PORT=$(cat /data/zerotier/ports/file_server.port)
