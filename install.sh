@@ -82,7 +82,7 @@ function install(){
      -v /data/zerotier/dist:/app/dist \
      -v /data/zerotier/ztncui:/app/ztncui\
      -v /data/zerotier/one:/var/lib/zerotier-one\
-     -v /data/config:/app/config\
+     -v /data/zerotier/config:/app/config\
      xubiaolin/zerotier-planet:latest
 
      sleep 10
