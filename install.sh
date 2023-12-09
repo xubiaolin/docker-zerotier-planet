@@ -103,7 +103,6 @@ function install(){
     echo "请及时修改密码"
     echo "---------------------------"
     echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
-    echo ""
     echo "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
     echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
 }
