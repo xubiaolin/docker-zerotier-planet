@@ -65,10 +65,10 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     && mkdir /app/config -p \
     && echo "${ZT_PORT}" >/app/config/zerotier-one.port \
     && echo ${API_PORT}> /app/config/ztncui.port \
-    && echo ${FILE_SERVER_PORT}> /app/config/file_server.port \
     && echo ${FILE_KEY}> /app/config/file_server.key \
     && echo ${IP_ADDR4}> /app/config/ip_addr4 \
-    && echo ${IP_ADDR6}> /app/config/ip_addr6 
+    && echo ${IP_ADDR6}> /app/config/ip_addr6 \
+    && echo ${FILE_SERVER_PORT}> /app/config/file_server.port 
 
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]

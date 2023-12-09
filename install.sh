@@ -100,7 +100,7 @@ function install(){
     echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
     echo ""
     echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
-    echo "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
+    echo "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
 }
 
 function info(){
