@@ -89,14 +89,15 @@ function install(){
 
     echo "安装完成"
     echo "---------------------------"
-    echo "请访问http://${ipv4}:${API_PORT}进行配置"
+    echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
     echo "默认用户名：admin"
     echo "默认密码：password"
     echo "请及时修改密码"
     echo "---------------------------"
     echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
-    echo "访问http://${ipv4}:${FILE_PORT}/planet?key=${KEY}"
-    echo "访问http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY}"
+    echo ""
+    echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+    echo "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
 }
 
 
