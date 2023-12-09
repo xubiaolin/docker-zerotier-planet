@@ -1,6 +1,8 @@
 #!/bin/bash
 
 function install(){
+    echo "开始安装..."
+
     ZT_PORT=9994
     API_PORT=3443
     FILE_PORT=3000
@@ -80,6 +82,7 @@ function install(){
      -v /data/zerotier/dist:/app/dist \
      -v /data/zerotier/ztncui:/app/ztncui\
      -v /data/zerotier/one:/var/lib/zerotier-one\
+     -v /data/ports:/app/ports\
      xubiaolin/zerotier-planet:latest
 
      sleep 10
@@ -102,6 +105,8 @@ function install(){
 
 
 function uninstall(){
+    echo "开始卸载..."
+
     docker stop myztplanet
     docker rm myztplanet
     docker rmi xubiaolin/zerotier-planet:latest
@@ -117,11 +122,29 @@ function uninstall(){
 }
 
 function update(){
+    echo "开始更新..."
+
     docker stop myztplanet 
     docker pull xubiaolin/zerotier-planet:latest
     docker rm myztplanet
 
-    install    
+    ZT_PORT=$(cat /data/zerotier/ports/zerotier-one.port)
+    API_PORT=$(cat /data/zerotier/ports/ztncui.port)
+    FILE_PORT=$(cat /data/zerotier/ports/file_server.port)
+
+    docker run -d --name myztplanet\
+     -p ${ZT_PORT}:${ZT_PORT} \
+     -p ${ZT_PORT}:${ZT_PORT}/udp \
+     -p ${API_PORT}:${API_PORT}\
+     -p ${FILE_PORT}:${FILE_PORT} \
+     -e ZT_PORT=${ZT_PORT} \
+     -e API_PORT=${API_PORT} \
+     -e FILE_SERVER_PORT=${FILE_PORT} \
+     -v /data/zerotier/dist:/app/dist \
+     -v /data/zerotier/ztncui:/app/ztncui\
+     -v /data/zerotier/one:/var/lib/zerotier-one\
+     -v /data/ports:/app/ports\
+     xubiaolin/zerotier-planet:latest
 }
 
 function menu(){

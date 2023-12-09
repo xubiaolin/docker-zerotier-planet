@@ -62,10 +62,12 @@ COPY --from=builder /app/http_server.js /app/http_server.js
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
     && apk add --no-cache npm curl jq\
-    && echo "${ZT_PORT}" >/app/zerotier-one.port \
-    && echo ${API_PORT}> /app/ztncui.port 
+    && mkdir -p /app/ports \
+    && echo "${ZT_PORT}" >/app/ports/zerotier-one.port \
+    && echo ${API_PORT}> /app/ports/ztncui.port \
+    && echo ${FILE_SERVER_PORT}> /app/ports/file_server.port 
 
 
-VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one" ]
+VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/ports"]
 
 CMD ["/bin/sh","/app/entrypoint.sh"]
