@@ -87,7 +87,7 @@ function install(){
 
      sleep 10
 
-    KEY=$(docker exec -it myztplanet sh -c 'cat /app/SECRET_KEY.txt')
+    KEY=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.key')
     MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon')
 
     echo "安装完成"
@@ -159,8 +159,8 @@ function update(){
 
     ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4')
     ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6')
-    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/ports/ztncui.port')
-    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/ports/file_server.port')
+    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/ztncui.port')
+    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.port')
     ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port')
     
     docker stop myztplanet 
