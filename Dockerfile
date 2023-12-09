@@ -71,6 +71,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
     && echo ${IP_ADDR6}> /app/config/ip_addr6 
 
 
-VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/ports"]
+VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
 
 CMD ["/bin/sh","/app/entrypoint.sh"]
