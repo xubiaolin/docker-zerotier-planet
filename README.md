@@ -1,6 +1,6 @@
 TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
-QQ交流群：785620313 (这个是新群，旧群被封了)
+QQ交流群：692635772
 
 
 
