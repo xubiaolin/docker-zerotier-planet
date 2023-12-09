@@ -74,6 +74,9 @@ function install(){
      -p ${ZT_PORT}:${ZT_PORT}/udp \
      -p ${API_PORT}:${API_PORT}\
      -p ${FILE_PORT}:${FILE_PORT} \
+     -e ZT_PORT=${ZT_PORT} \
+     -e API_PORT=${API_PORT} \
+     -e FILE_SERVER_PORT=${FILE_PORT} \
      -v /data/zerotier/dist:/app/dist \
      -v /data/zerotier/ztncui:/app/ztncui\
      -v /data/zerotier/one:/var/lib/zerotier-one\
