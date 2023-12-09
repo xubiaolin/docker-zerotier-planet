@@ -22,7 +22,7 @@ function check_ztncui() {
         echo "HTTP_PORT=${API_PORT}" >.env &&
             echo 'NODE_ENV=production' >>.env &&
             echo 'HTTP_ALL_INTERFACES=true' >>.env &&
-            echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env && echo "${ZT_PORT}" >/app/zerotier-one.port &&
+            echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env && echo "${ZT_PORT}" >/app/config/zerotier-one.port &&
             cp -v etc/default.passwd etc/passwd && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) &&
             echo "ZT_TOKEN=$TOKEN" >>.env &&
             echo "make ztncui success!"
@@ -48,8 +48,8 @@ function check_zerotier() {
         echo "IP_ADDR4=$IP_ADDR4"
         echo "IP_ADDR6=$IP_ADDR6"
 
-        ZT_PORT=$(cat /app/zerotier-one.port)
-        API_PORT=$(cat /app/ztncui.port)
+        ZT_PORT=$(cat /app/config/zerotier-one.port)
+        API_PORT=$(cat /app/config/ztncui.port)
 
         echo "ZT_PORT=$ZT_PORT"
         echo "API_PORT=$API_PORT"
@@ -61,6 +61,9 @@ function check_zerotier() {
             echo "IP_ADDR4 and IP_ADDR6 are both empty!"
             exit 1
         fi
+
+        echo "$IP_ADDR4">/app/config/ip_addr4
+        echo "$IP_ADDR6">/app/config/ip_addr6
 
         echo "stableEndpoints=$stableEndpoints"
 

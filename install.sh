@@ -103,6 +103,34 @@ function install(){
     echo "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
 }
 
+function info(){
+    docker inspect myztplanet >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "容器myztplanet不存在，请先安装"
+        exit 1
+    fi
+
+    ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4')
+    ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6')
+    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/ports/ztncui.port')
+    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/ports/file_server.port')
+    MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon')
+    ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port')
+
+    echo "---------------------------"
+    echo "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}"
+    echo "---------------------------"
+    echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
+    echo "默认用户名：admin"
+    echo "默认密码：password"
+    echo "请及时修改密码"
+    echo "---------------------------"
+    echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
+    echo ""
+    echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+    echo "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
+
+}
 
 function uninstall(){
     echo "开始卸载..."
@@ -128,15 +156,16 @@ function update(){
         echo "目录/data/zerotier不存在，无法更新"
         exit 0 
     fi
+
+    ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4')
+    ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6')
+    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/ports/ztncui.port')
+    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/ports/file_server.port')
+    ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port')
     
     docker stop myztplanet 
     docker pull xubiaolin/zerotier-planet:latest
     docker rm myztplanet
-
-
-    ZT_PORT=$(cat /data/zerotier/ports/zerotier-one.port)
-    API_PORT=$(cat /data/zerotier/ports/ztncui.port)
-    FILE_PORT=$(cat /data/zerotier/ports/file_server.port)
 
     docker run -d --name myztplanet\
      -p ${ZT_PORT}:${ZT_PORT} \
@@ -158,25 +187,16 @@ function menu(){
     echo "1. 安装"
     echo "2. 卸载"
     echo "3. 更新"
-    echo "4. 退出"
-    read -p "请输入数字(1-4): " num
+    echo "4. 查看信息"
+    echo "5. 退出"
+    read -p "请输入数字：" num
     case "$num" in
-        1)
-            install
-        ;;
-        2)
-            uninstall
-        ;;
-        3)
-            update
-        ;;
-        4)
-            exit 0
-        ;;
-        *)
-            echo "请输入正确的数字(1-4)"
-            menu
-        ;;
+    [1] ) install;;
+    [2] ) uninstall;;
+    [3] ) update;;
+    [4] ) info;;
+    [5] ) exit;;
+    *) echo "请输入正确数字 [1-5]";;
     esac
 }
 

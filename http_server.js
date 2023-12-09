@@ -10,7 +10,7 @@ const APP_PATH='/app'
 const DIST_PATH = '/app/dist'
 
 // write to file
-const secretKeyPath = '/app/SECRET_KEY.txt';
+const secretKeyPath = '/app/config/file_server.key';
 fs.writeFile(secretKeyPath, SECRET_KEY, (err) => {
     if (err) {
         console.error('Error writing SECRET_KEY to file:', err);

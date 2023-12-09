@@ -47,8 +47,8 @@ ENV IP_ADDR6=''
 ENV ZT_PORT=9994
 ENV API_PORT=3443
 ENV FILE_SERVER_PORT=3000
-ENV GH_MIRROR="https://ghproxy.markxu.online/"
 
+ENV GH_MIRROR="https://ghproxy.markxu.online/"
 ENV FILE_KEY=''
 ENV TZ=Asia/Shanghai
 
@@ -62,10 +62,13 @@ COPY --from=builder /app/http_server.js /app/http_server.js
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
     && apk add --no-cache npm curl jq\
-    && mkdir -p /app/ports \
-    && echo "${ZT_PORT}" >/app/ports/zerotier-one.port \
-    && echo ${API_PORT}> /app/ports/ztncui.port \
-    && echo ${FILE_SERVER_PORT}> /app/ports/file_server.port 
+    && mkdir /app/config -p \
+    && echo "${ZT_PORT}" >/app/config/zerotier-one.port \
+    && echo ${API_PORT}> /app/config/ztncui.port \
+    && echo ${FILE_SERVER_PORT}> /app/config/file_server.port \
+    && echo ${FILE_KEY}> /app/config/file_server.key \
+    && echo ${IP_ADDR4}> /app/config/ip_addr4 \
+    && echo ${IP_ADDR6}> /app/config/ip_addr6 
 
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/ports"]
