@@ -47,6 +47,7 @@ ENV IP_ADDR6=''
 ENV ZT_PORT=9994
 ENV API_PORT=3443
 ENV FILE_SERVER_PORT=3000
+ENV GH_MIRROR="https://ghproxy.markxu.online/"
 
 ENV FILE_KEY=''
 ENV TZ=Asia/Shanghai
