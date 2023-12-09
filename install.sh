@@ -124,14 +124,15 @@ function uninstall(){
 function update(){
     echo "开始更新..."
 
+    if [ ! -d "/data/zerotier" ]; then
+        echo "目录/data/zerotier不存在，无法更新"
+        exit 0 
+    fi
+    
     docker stop myztplanet 
     docker pull xubiaolin/zerotier-planet:latest
     docker rm myztplanet
 
-    if [ ! -d "/data/zerotier" ]; then
-        echo "目录/data/zerotier不存在，无法更新"
-        exit 1 
-    fi
 
     ZT_PORT=$(cat /data/zerotier/ports/zerotier-one.port)
     API_PORT=$(cat /data/zerotier/ports/ztncui.port)
