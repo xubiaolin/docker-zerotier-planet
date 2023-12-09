@@ -90,6 +90,11 @@ function install(){
     KEY=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.key')
     MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon')
 
+    ipv4=$(echo $ipv4 | tr -d '\n')
+    FILE_PORT=$(echo $FILE_PORT | tr -d '\n')
+    KEY=$(echo $KEY | tr -d '\n')
+    MOON_NAME=$(echo $MOON_NAME | tr -d '\n')
+
     echo "安装完成"
     echo "---------------------------"
     echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
