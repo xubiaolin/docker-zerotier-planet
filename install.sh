@@ -2,6 +2,11 @@
 
 function install(){
     echo "开始安装..."
+    ###
+    docker rm -f myztplanet
+    rm -f /data/zerotier
+
+    ###
 
     ZT_PORT=9994
     API_PORT=3443
@@ -12,19 +17,18 @@ function install(){
         read -p "端口号必须是数字，请重新输入: " ZT_PORT
     done
 
-    netstat -anp | grep ${ZT_PORT}
-    if [ $? -eq 0 ]; then
+    if [ $(lsof -i:${ZT_PORT} | wc -l) -gt 0 ]; then
         echo "端口${ZT_PORT}已被占用，请重新输入"
         exit 1
     fi
+    
 
     read -p "请输入zerotier-planet的API端口号,例如3443: " API_PORT
     while [[ ! "$API_PORT" =~ ^[0-9]+$ ]]; do
         read -p "端口号必须是数字，请重新输入: " API_PORT
     done
 
-    netstat -anp | grep ${API_PORT}
-    if [ $? -eq 0 ]; then
+    if [ $(lsof -i:${API_PORT} | wc -l) -gt 0 ]; then
         echo "端口${API_PORT}已被占用，请重新输入"
         exit 1
     fi
@@ -35,8 +39,7 @@ function install(){
         read -p "端口号必须是数字，请重新输入: " FILE_PORT
     done
 
-    netstat -anp | grep ${FILE_PORT}
-    if [ $? -eq 0 ]; then
+    if [ $(lsof -i:${FILE_PORT} | wc -l) -gt 0 ]; then
         echo "端口${FILE_PORT}已被占用，请重新输入"
         exit 1
     fi
@@ -84,8 +87,13 @@ function install(){
      -v /data/zerotier/one:/var/lib/zerotier-one\
      -v /data/zerotier/config:/app/config\
      xubiaolin/zerotier-planet:latest
+    
+    if [ $? -ne 0 ]; then
+        echo "安装失败"
+        exit 1
+    fi
 
-     sleep 10
+     sleep 10   
 
     KEY=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.key')
     MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon')
@@ -102,9 +110,15 @@ function install(){
     echo "默认密码：password"
     echo "请及时修改密码"
     echo "---------------------------"
+
+    echo $ipv4
+    echo $FILE_PORT
+    echo $MOON_NAME
+    echo $KEY
+
     echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
-    echo "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
-    echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+    echo -e "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
+    echo -e "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
 }
 
 function info(){

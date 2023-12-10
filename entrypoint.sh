@@ -12,12 +12,15 @@ function start() {
 function check_ztncui() {
     mkdir -p /app/ztncui
     if [ "$(ls -A /app/ztncui)" ]; then
+        echo "${API_PORT}" >/app/config/ztncui.port
         echo "/app/ztncui is not empty, start directly"
     else
         echo "/app/ztncui is empty, init data"
         cp -r /bak/ztncui/* /app/ztncui/
 
         echo "config ztncui"
+        mkdir -p /app/config
+        echo "${API_PORT}" >/app/config/ztncui.port
         cd /app/ztncui/src
         echo "HTTP_PORT=${API_PORT}" >.env &&
             echo 'NODE_ENV=production' >>.env &&
@@ -33,8 +36,10 @@ function check_zerotier() {
     mkdir -p /var/lib/zerotier-one
     if [ "$(ls -A /var/lib/zerotier-one)" ]; then
         echo "/var/lib/zerotier-one is not empty, start directly"
-    else
+    else    
+        mkdir -p /app/config
         echo "/var/lib/zerotier-one is empty, init data"
+        echo "${ZT_PORT}" >/app/config/zerotier-one.port
         cp -r /bak/zerotier-one/* /var/lib/zerotier-one/
 
         cd /var/lib/zerotier-one
@@ -81,7 +86,20 @@ function check_zerotier() {
     fi
 }
 
+function check_file_server(){
+    if [ ! -f "/app/config/file_server.port" ]; then
+        echo "file_server.port is not exist, generate it"
+        echo "${FILE_SERVER_PORT}" >/app/config/file_server.port
+        echo "${FILE_SERVER_PORT}"
+    else
+        echo "file_server.port is exist, read it"
+        FILE_SERVER_PORT=$(cat /app/config/file_server.port)
+        echo "${FILE_SERVER_PORT}"
+    fi
+}
 
+
+check_file_server
 check_ztncui
 check_zerotier
 
