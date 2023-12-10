@@ -4,7 +4,7 @@ set -x
 
 function start() {
     echo "start ztncui and zerotier"
-    cd /var/lib/zerotier-one && ./zerotier-one -p$(cat /app/zerotier-one.port) -d || exit 1
+    cd /var/lib/zerotier-one && ./zerotier-one -p$(cat /app/config/zerotier-one.port) -d || exit 1
     nohup node /app/http_server.js &> /app/server.log & 
     cd /app/ztncui/src && npm start || exit 1
 }
