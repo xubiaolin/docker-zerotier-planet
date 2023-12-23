@@ -1,53 +1,70 @@
-FROM alpine:3.17 as builder
-
-ARG ZT_PORT
+FROM alpine:3.14 as builder
 
 ENV TZ=Asia/Shanghai
 
 WORKDIR /app
-ADD . /app
+ADD ./entrypoint.sh /app/entrypoint.sh
+ADD ./http_server.js /app/http_server.js
 
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
+# init tool
+RUN set -x\
     && apk update\
-    && mkdir -p /usr/include/nlohmann/ && cd /usr/include/nlohmann/ && wget https://ghproxy.markxu.online/https://github.com/nlohmann/json/releases/download/v3.10.5/json.hpp \
-    && apk add --no-cache git python3 npm make g++ zerotier-one linux-headers\
-    && mkdir /app -p &&  cd /app && git clone --progress https://ghproxy.markxu.online/https://github.com/key-networks/ztncui.git\
+    && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev  jq build-base  gcc \
+    && echo "env prepare success!"
+
+# make zerotier-one
+RUN set -x\
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
+    && source "$HOME/.cargo/env"\
+    && git clone https://github.com/zerotier/ZeroTierOne.git\
+    && cd ZeroTierOne\
+    && make ZT_SYMLINK=1 \
+    && make\
+    && make install\
+    && echo "make success!"\
+    ; zerotier-one -d  \
+    ; sleep 5s && ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9\
+    && echo "zerotier-one init success!"
+
+
+#make ztncui 
+RUN set -x \
+    && mkdir /app -p \
+    &&  cd /app \
+    && git clone --progress https://ghproxy.markxu.online/https://github.com/key-networks/ztncui.git\
     && cd /app/ztncui/src \
-    && cp /app/patch/binding.gyp .\
-    && echo "开始配置npm环境"\
-    && npm install -g --progress --verbose node-gyp --registry=https://registry.npmmirror.com\
-    && npm install  --registry=https://registry.npmmirror.com\
-    && echo 'HTTP_PORT=3443' >.env \
-    && echo 'NODE_ENV=production' >>.env \
-    && echo 'HTTP_ALL_INTERFACES=true' >>.env \
-    && echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env\
-    && echo "${ZT_PORT}" >/app/zerotier-one.port \
-    && cp -v etc/default.passwd etc/passwd
+    && npm config set registry https://registry.npmmirror.com\
+    && npm install -g node-gyp\
+    && npm install 
 
-RUN cd /app && git clone --progress https://ghproxy.markxu.online/https://github.com/zerotier/ZeroTierOne.git --depth 1\
-    && zerotier-one -d && sleep 5s && ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 \
-    && cd /var/lib/zerotier-one && zerotier-idtool initmoon identity.public >moon.json\
-    && cd /app/patch && python3 patch.py \
-    && cd /var/lib/zerotier-one && zerotier-idtool genmoon moon.json && mkdir moons.d && cp ./*.moon ./moons.d \
-    && cd /app/ZeroTierOne/attic/world/ && sh build.sh \
-    && sleep 5s \
-    && cd /app/ZeroTierOne/attic/world/ && ./mkworld \
-    && mkdir /app/bin -p && cp world.bin /app/bin/planet \
-    && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) \
-    && echo "ZT_TOKEN=$TOKEN">> /app/ztncui/src/.env 
+FROM alpine:3.14
 
-FROM alpine:3.17
 WORKDIR /app
 
-COPY --from=builder /app/ztncui /app/ztncui
-COPY --from=builder /app/bin /app/bin
-COPY --from=builder /app/zerotier-one.port /app/zerotier-one.port
-COPY --from=builder /var/lib/zerotier-one /var/lib/zerotier-one
+ENV IP_ADDR4=''
+ENV IP_ADDR6=''
 
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
-    && apk update\
-    && apk add --no-cache npm zerotier-one
+ENV ZT_PORT=9994
+ENV API_PORT=3443
+ENV FILE_SERVER_PORT=3000
 
-VOLUME [ "/app","/var/lib/zerotier-one" ]
+ENV GH_MIRROR="https://ghproxy.markxu.online/"
+ENV FILE_KEY=''
+ENV TZ=Asia/Shanghai
 
-CMD /bin/sh -c "cd /var/lib/zerotier-one && ./zerotier-one -p`cat /app/zerotier-one.port` -d; cd /app/ztncui/src;npm start"
+COPY --from=builder /app/ztncui /bak/ztncui
+COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
+
+COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
+COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
+COPY --from=builder /app/http_server.js /app/http_server.js
+
+RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
+    && apk update \
+    && apk add --no-cache npm curl jq\
+    && mkdir /app/config -p 
+
+
+VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
+
+CMD ["/bin/sh","/app/entrypoint.sh"]
