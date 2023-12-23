@@ -1,8 +1,7 @@
 TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
-QQ交流群：
+QQ交流群：692635772
 
-![image](https://user-images.githubusercontent.com/51899048/221509739-7d039726-34a1-4174-b85f-2d0cbf07bd31.png)
 
 
 - [0: 广告](#0-广告)
@@ -51,12 +50,21 @@ QQ交流群：
 月付低至10￥，年付低至100￥
 带宽|流量|费用（每月）|
 -|-|-
+<<<<<<< HEAD
 5Mbit|100G|10￥
 10Mbit|100G|18￥
 30Mbit|100G|38￥
 50Mbit|100G|58￥
 100Mbit|100G|98￥
 200Mbit|100G|168￥
+=======
+3Mbit|100G|10￥
+10Mbit|100G|15￥
+30Mbit|100G|20￥
+50Mbit|100G|25￥
+100Mbit|100G|50￥
+200Mbit|100G|100￥
+>>>>>>> cfa3ae2054852a51e7e36f75a16e7de1c2ec95eb
 
 流量超出后10￥可购买100G
 
