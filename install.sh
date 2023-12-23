@@ -1,12 +1,25 @@
 #!/bin/bash
 
 function install(){
-    echo "开始安装..."
-    ###
+    echo "开始安装，如果你已经安装了，将会删除旧的数据，10s后开始安装..."
+    sleep 10
+
+    #安装lsof工具
+    if [ ! -f "/usr/bin/lsof" ]; then
+        echo "开始安装lsof工具..."
+        #debian
+        if [ -f "/usr/bin/apt" ]; then
+            apt update
+            apt install -y lsof
+        fi
+        #centos
+        if [ -f "/usr/bin/yum" ]; then
+            yum install -y lsof
+        fi
+    fi
+
     docker rm -f myztplanet
     rm -f /data/zerotier
-
-    ###
 
     ZT_PORT=9994
     API_PORT=3443
@@ -60,7 +73,6 @@ function install(){
         read -p "请输入IPv6地址(可留空): " ipv6
         fi
     else
-        # 要求用户手动输入IP地址
         read -p "请输入IPv4地址: " ipv4
         read -p "请输入IPv6地址(可留空): " ipv6
     fi
@@ -98,10 +110,10 @@ function install(){
     KEY=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.key')
     MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon')
 
-    ipv4=$(echo $ipv4 | tr -d '\n')
-    FILE_PORT=$(echo $FILE_PORT | tr -d '\n')
-    KEY=$(echo $KEY | tr -d '\n')
-    MOON_NAME=$(echo $MOON_NAME | tr -d '\n')
+    ipv4=$(echo $ipv4 | tr -d '\r')
+    FILE_PORT=$(echo $FILE_PORT | tr -d '\r')
+    KEY=$(echo $KEY | tr -d '\r')
+    MOON_NAME=$(echo $MOON_NAME | tr -d '\r')
 
     echo "安装完成"
     echo "---------------------------"
@@ -111,14 +123,13 @@ function install(){
     echo "请及时修改密码"
     echo "---------------------------"
 
-    echo $ipv4
-    echo $FILE_PORT
-    echo $MOON_NAME
-    echo $KEY
-
     echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
     echo -e "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
     echo -e "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+
+    echo "---------------------------"
+    echo "请放行以下端口请：${ZT_PORT}/tcp,${ZT_PORT}/udp，${API_PORT}/tcp，${FILE_PORT}/tcp"
+    echo "---------------------------"
 }
 
 function info(){
@@ -128,12 +139,13 @@ function info(){
         exit 1
     fi
 
-    ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4')
-    ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6')
-    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/ztncui.port')
-    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.port')
-    MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon')
-    ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port')
+    ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4' | tr -d '\r')
+    ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6' | tr -d '\r')
+    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/ztncui.port' | tr -d '\r')
+    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.port' | tr -d '\r')
+    MOON_NAME=$(docker exec -it myztplanet sh -c 'ls /app/dist |grep moon' | tr -d '\r')
+    ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port' | tr -d '\r')
+    KEY=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.key' |tr -d '\r')
 
     echo "---------------------------"
     echo "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}"
@@ -168,6 +180,15 @@ function uninstall(){
 }
 
 function update(){
+    docker inspect myztplanet >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "容器myztplanet不存在，请先安装"
+        exit 1
+    fi
+
+    echo "如果用与生产环境，请先备份数据，不建议直接更新,10s后开始更新..."
+    sleep 10
+
     echo "开始更新..."
 
     if [ ! -d "/data/zerotier" ]; then
@@ -175,11 +196,18 @@ function update(){
         exit 0 
     fi
 
-    ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4')
-    ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6')
-    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/ztncui.port')
-    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.port')
-    ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port')
+    ipv4=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr4' | tr -d '\r')
+    ipv6=$(docker exec -it myztplanet sh -c 'cat /app/config/ip_addr6' | tr -d '\r')
+    API_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/ztncui.port' | tr -d '\r')
+    FILE_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/file_server.port' | tr -d '\r')
+    ZT_PORT=$(docker exec -it myztplanet sh -c 'cat /app/config/zerotier-one.port' | tr -d '\r')
+
+    echo "---------------------------"
+    echo "ipv4地址为：${ipv4}"
+    echo "ipv6地址为：${ipv6}"
+    echo "API端口号为：${API_PORT}"
+    echo "FILE端口号为：${FILE_PORT}"
+    echo "ZT端口号为：${ZT_PORT}"
     
     docker stop myztplanet 
     docker pull xubiaolin/zerotier-planet:latest
