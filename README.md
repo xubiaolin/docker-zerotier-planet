@@ -17,6 +17,7 @@ QQ交流群：692635772
   - [3.4 下载 `planet` 文件](#34-下载-planet-文件)
   - [3.5 新建网络](#35-新建网络)
     - [3.5.1 创建网络](#351-创建网络)
+    - [3.5.2 分配网络IP:](#352-分配网络ip)
 - [4.客户端配置](#4客户端配置)
   - [4.1 Windows 配置](#41-windows-配置)
     - [4.2 加入网络](#42-加入网络)
@@ -34,9 +35,11 @@ QQ交流群：692635772
   - [5. PVE lxc 容器没有创建网卡](#5-pve-lxc-容器没有创建网卡)
   - [6. 管理后台忘记密码怎么办：](#6-管理后台忘记密码怎么办)
 - [开发计划](#开发计划)
+  - [7. 为什么连不上planet](#7-为什么连不上planet)
+  - [8. 如何判断是直连还是中转](#8-如何判断是直连还是中转)
+  - [9. 为什么我的zerotier传输不稳定](#9-为什么我的zerotier传输不稳定)
 - [风险声明](#风险声明)
 - [类似项目](#类似项目)
-- [推广](#推广)
 - [捐助和支持](#捐助和支持)
 
 # 0: 广告
@@ -47,12 +50,21 @@ QQ交流群：692635772
 月付低至10￥，年付低至100￥
 带宽|流量|费用（每月）|
 -|-|-
+<<<<<<< HEAD
+5Mbit|100G|10￥
+10Mbit|100G|18￥
+30Mbit|100G|38￥
+50Mbit|100G|58￥
+100Mbit|100G|98￥
+200Mbit|100G|168￥
+=======
 3Mbit|100G|10￥
 10Mbit|100G|15￥
 30Mbit|100G|20￥
 50Mbit|100G|25￥
 100Mbit|100G|50￥
 200Mbit|100G|100￥
+>>>>>>> cfa3ae2054852a51e7e36f75a16e7de1c2ec95eb
 
 流量超出后10￥可购买100G
 
@@ -137,34 +149,26 @@ cd docker-zerotier-planet
 ```
 欢迎使用zerotier-planet脚本，请选择需要执行的操作：
 1. 安装
-2. 更新
-其他任意键退出
-
+2. 卸载
+3. 更新
+4. 查看信息
+5. 退出
+请输入数字：
 ```
 
-整个脚本预计需要 3-10 分钟,具体需要看网络与机型
+整个脚本预计需要 1-3 分钟,具体需要看网络与机型
 
 
 当您看到类似如下字样时，表示安装成功
-```
-启动服务                                                                                                                                        
-3b59df95edabeabbf19aa6605b28704608710719bdf7c6e7612d75d01ede8f48                                                                                
-Preparing to copy...
-Copying from container - 512B
-Copying from container - 769B
-Copying from container - 1.024kB
-Copying from container - 1.536kB
-Successfully copied 2.048kB to /tmp/planet
-planet文件路径为 /tmp/planet
-planet server端口为: 9994, 请在防火墙放行该端口的tcp和udp协议
-enjoy~
-```
+![install-finish](./asserts/install_finish.png)
 
 
 ## 3.4 下载 `planet` 文件
-脚本运行完成后，会在 `/tmp/` 目录下有个 `planet` 文件
+脚本运行完成后，会在 `/data/zerotier/dist` 目录下有个 `planet`和`moon` 文件
 
-下载该文件以备用
+可以直接访问安装完成后的url下载，也可以用scp等其他方式下载
+
+下载文件备用
 
 ## 3.5 新建网络
 访问 `http://ip:3443` 进入controller页面
@@ -186,6 +190,12 @@ enjoy~
 
 ![ui](asserts/ztncui_net_id.png)
 
+### 3.5.2 分配网络IP:
+选中easy setup
+![assign_id](./asserts/easy_setup.png)
+
+生成ip范围
+![ip_addr](./asserts/network_addr.png)
 
 # 4.客户端配置
 客户端主要为Windows, Mac, Linux, Android
@@ -214,9 +224,13 @@ PS C:\Windows\system32> zerotier-cli.bat join 网络id(就是在网页里面创�
 PS C:\Windows\system32>
 ```
 
-登录管理后台可以看到有个个新的客户端，勾选Authorized就行
+登录管理后台可以看到有个个新的客户端，勾选`Authorized`就行
 
 ![ui](asserts/join_net.png)
+
+IP assignment 里面会出现zerotier的内网ip
+
+![ip](./asserts/allow_devices.png)
 
 执行如下命令：
 ```
@@ -243,7 +257,7 @@ PS C:\Windows\system32>
 7. `zerotier-cli peers` 可以看到` planet` 角色
 
 ## 4.3 安卓客户端配置
-[Zerotier 非官方安卓客户端发布：支持自建 Moon 节点 - V2EX](https://www.v2ex.com/t/768628)
+[Zerotier 非官方安卓客户端](https://github.com/kaaass/ZerotierFix)
 
 ## 4.4 MacOS 客户端配置
 步骤如下：
@@ -340,9 +354,24 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 # 开发计划
 🥰您的捐助可以让开发计划的速度更快🥰
 - [ ] 多planet支持
-- [ ] 3443端口自定义支持
+- [x] 3443端口自定义支持
 - [ ] planet和controller分离部署
 
+## 7. 为什么连不上planet
+请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。linux机器上也要放行，如果安装了ufw等防火墙工具。
+
+## 8. 如何判断是直连还是中转
+管理员权限执行终端，运行`zerotier-cli peers`
+```
+<ztaddr>   <ver>  <role> <lat> <link>   <lastTX> <lastRX> <path>
+69c0d507d0 -      LEAF      -1 RELAY
+93caa675b0 1.12.2 PLANET  -894 DIRECT   4142     4068     110.42.99.46/9994
+ab403e2074 1.10.2 LEAF      -1 RELAY
+```
+如果你的ztaddr是REPLAY, 就说明是中转
+
+## 9. 为什么我的zerotier传输不稳定
+由于zerotier使用的是udp协议，部分地区可能对udp进行了qos, 可以考虑使用openvpn。
 
 # 风险声明
 
@@ -352,14 +381,15 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 # 类似项目
 - [wireguard一键脚本](https://github.com/xubiaolin/wireguard-onekey)
 
-# 推广
-京东云主机，安全稳定，性能强劲，新客下单专享特惠
-
-【金秋大促】爆款云主机2核2G3M低至66元首年，优惠直达链接:
-https://daili.jd.com/s?linkNo=XF2RVUILETHMCX7BGKAFQHBG2JUUE7S76XQIWTR74W3LQQS6OLTQM5XEITBWPC4WZA6UGATAQLY674QVVELZCIABN4
 
 # 捐助和支持
 
 如果觉得本项目对您有帮助，欢迎通过扫描下方赞赏码捐助项目 :)
 
-<img src="asserts/donate.jpg" alt="donate" width="400" height="400" />
+<img src="asserts/donate.png" alt="donate" width="400" height="400" />
+
+<hr>
+
+<img src='asserts/alipay.jpg' alt='alipay' width='400' height='400'>
+
+复制 852129070 🏮搭开..🏮支付宝去搜索，✔`ho n`g 笣✔送喜庆，幸示 畐到心
