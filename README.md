@@ -157,7 +157,7 @@ cd docker-zerotier-planet
 
 
 ## 3.4 下载 `planet` 文件
-脚本运行完成后，会在 `/data/zerotier/dist` 目录下有个 `planet`和`moon` 文件
+脚本运行完成后，会在 `./data/zerotier/dist` 目录下有个 `planet`和`moon` 文件
 
 可以直接访问安装完成后的url下载，也可以用scp等其他方式下载
 
