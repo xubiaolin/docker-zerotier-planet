@@ -19,7 +19,7 @@ function install(){
     fi
 
     docker rm -f myztplanet
-    rm -f /data/zerotier
+    rm -f ./data/zerotier
 
     ZT_PORT=9994
     API_PORT=3443
@@ -94,10 +94,10 @@ function install(){
      -e ZT_PORT=${ZT_PORT} \
      -e API_PORT=${API_PORT} \
      -e FILE_SERVER_PORT=${FILE_PORT} \
-     -v /data/zerotier/dist:/app/dist \
-     -v /data/zerotier/ztncui:/app/ztncui\
-     -v /data/zerotier/one:/var/lib/zerotier-one\
-     -v /data/zerotier/config:/app/config\
+     -v ./data/zerotier/dist:/app/dist \
+     -v ./data/zerotier/ztncui:/app/ztncui\
+     -v ./data/zerotier/one:/var/lib/zerotier-one\
+     -v ./data/zerotier/config:/app/config\
      xubiaolin/zerotier-planet:latest
     
     if [ $? -ne 0 ]; then
@@ -123,7 +123,7 @@ function install(){
     echo "请及时修改密码"
     echo "---------------------------"
 
-    echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
+    echo "moon配置和planet配置在 ./data/zerotier/dist 目录下"
     echo -e "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
     echo -e "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
 
@@ -155,7 +155,7 @@ function info(){
     echo "默认密码：password"
     echo "请及时修改密码"
     echo "---------------------------"
-    echo "moon配置和planet配置在 /data/zerotier/dist 目录下"
+    echo "moon配置和planet配置在 ./data/zerotier/dist 目录下"
     echo ""
     echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
     echo "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
@@ -173,7 +173,7 @@ function uninstall(){
     read -p "是否删除数据?(y/n)" delete_data
     delete_data=${delete_data:-n}
     if [[ "$delete_data" =~ ^[Yy]$ ]]; then
-        rm -rf /data/zerotier
+        rm -rf ./data/zerotier
     fi
 
     echo "卸载完成"
@@ -191,8 +191,8 @@ function update(){
 
     echo "开始更新..."
 
-    if [ ! -d "/data/zerotier" ]; then
-        echo "目录/data/zerotier不存在，无法更新"
+    if [ ! -d "./data/zerotier" ]; then
+        echo "目录./data/zerotier不存在，无法更新"
         exit 0 
     fi
 
@@ -221,9 +221,9 @@ function update(){
      -e ZT_PORT=${ZT_PORT} \
      -e API_PORT=${API_PORT} \
      -e FILE_SERVER_PORT=${FILE_PORT} \
-     -v /data/zerotier/dist:/app/dist \
-     -v /data/zerotier/ztncui:/app/ztncui\
-     -v /data/zerotier/one:/var/lib/zerotier-one\
+     -v ./data/zerotier/dist:/app/dist \
+     -v ./data/zerotier/ztncui:/app/ztncui\
+     -v ./data/zerotier/one:/var/lib/zerotier-one\
      -v /data/config:/app/config\
      xubiaolin/zerotier-planet:latest
 }
