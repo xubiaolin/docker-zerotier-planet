@@ -218,6 +218,8 @@ function update(){
      -p ${ZT_PORT}:${ZT_PORT}/udp \
      -p ${API_PORT}:${API_PORT}\
      -p ${FILE_PORT}:${FILE_PORT} \
+     -e IP_ADDR4=${ipv4} \
+     -e IP_ADDR6=${ipv6} \
      -e ZT_PORT=${ZT_PORT} \
      -e API_PORT=${API_PORT} \
      -e FILE_SERVER_PORT=${FILE_PORT} \
