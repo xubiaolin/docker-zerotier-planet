@@ -61,7 +61,7 @@ COPY --from=builder /app/http_server.js /app/http_server.js
 
 RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
-    && apk add --no-cache npm curl jq\
+    && apk add --no-cache npm curl jq openssl\
     && mkdir /app/config -p 
 
 

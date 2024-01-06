@@ -9,26 +9,15 @@ function start() {
     cd /app/ztncui/src && npm start || exit 1
 }
 
-function check_ztncui() {
-    mkdir -p /app/ztncui
-    if [ "$(ls -A /app/ztncui)" ]; then
-        echo "${API_PORT}" >/app/config/ztncui.port
-        echo "/app/ztncui is not empty, start directly"
+function check_file_server(){
+    if [ ! -f "/app/config/file_server.port" ]; then
+        echo "file_server.port is not exist, generate it"
+        echo "${FILE_SERVER_PORT}" >/app/config/file_server.port
+        echo "${FILE_SERVER_PORT}"
     else
-        echo "/app/ztncui is empty, init data"
-        cp -r /bak/ztncui/* /app/ztncui/
-
-        echo "config ztncui"
-        mkdir -p /app/config
-        echo "${API_PORT}" >/app/config/ztncui.port
-        cd /app/ztncui/src
-        echo "HTTP_PORT=${API_PORT}" >.env &&
-            echo 'NODE_ENV=production' >>.env &&
-            echo 'HTTP_ALL_INTERFACES=true' >>.env &&
-            echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env && echo "${ZT_PORT}" >/app/config/zerotier-one.port &&
-            cp -v etc/default.passwd etc/passwd && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) &&
-            echo "ZT_TOKEN=$TOKEN" >>.env &&
-            echo "make ztncui success!"
+        echo "file_server.port is exist, read it"
+        FILE_SERVER_PORT=$(cat /app/config/file_server.port)
+        echo "${FILE_SERVER_PORT}"
     fi
 }
 
@@ -44,6 +33,7 @@ function check_zerotier() {
 
         cd /var/lib/zerotier-one
         echo "start mkmoonworld"
+        openssl rand -hex 16 > authtoken.secret
 
         ./zerotier-idtool initmoon identity.public >moon.json
 
@@ -54,10 +44,8 @@ function check_zerotier() {
         echo "IP_ADDR6=$IP_ADDR6"
 
         ZT_PORT=$(cat /app/config/zerotier-one.port)
-        API_PORT=$(cat /app/config/ztncui.port)
 
         echo "ZT_PORT=$ZT_PORT"
-        echo "API_PORT=$API_PORT"
 
         if [ -z "$IP_ADDR4" ]; then stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"; fi
         if [ -z "$IP_ADDR6" ]; then stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"; fi
@@ -86,21 +74,31 @@ function check_zerotier() {
     fi
 }
 
-function check_file_server(){
-    if [ ! -f "/app/config/file_server.port" ]; then
-        echo "file_server.port is not exist, generate it"
-        echo "${FILE_SERVER_PORT}" >/app/config/file_server.port
-        echo "${FILE_SERVER_PORT}"
+function check_ztncui() {
+    mkdir -p /app/ztncui
+    if [ "$(ls -A /app/ztncui)" ]; then
+        echo "${API_PORT}" >/app/config/ztncui.port
+        echo "/app/ztncui is not empty, start directly"
     else
-        echo "file_server.port is exist, read it"
-        FILE_SERVER_PORT=$(cat /app/config/file_server.port)
-        echo "${FILE_SERVER_PORT}"
+        echo "/app/ztncui is empty, init data"
+        cp -r /bak/ztncui/* /app/ztncui/
+
+        echo "config ztncui"
+        mkdir -p /app/config
+        echo "${API_PORT}" >/app/config/ztncui.port
+        cd /app/ztncui/src
+        echo "HTTP_PORT=${API_PORT}" >.env &&
+            echo 'NODE_ENV=production' >>.env &&
+            echo 'HTTP_ALL_INTERFACES=true' >>.env &&
+            echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env && echo "${ZT_PORT}" >/app/config/zerotier-one.port &&
+            cp -v etc/default.passwd etc/passwd && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) &&
+            echo "ZT_TOKEN=$TOKEN" >>.env &&
+            echo "make ztncui success!"
     fi
 }
 
-
 check_file_server
-check_ztncui
 check_zerotier
+check_ztncui
 
 start
