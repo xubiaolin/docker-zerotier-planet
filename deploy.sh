@@ -19,7 +19,7 @@ function install() {
     fi
 
     docker rm -f myztplanet
-    rm -f $(pwd)/data/zerotier
+    rm -rf $(pwd)/data/zerotier
 
     ZT_PORT=9994
     API_PORT=3443
@@ -218,7 +218,7 @@ function update() {
         -e API_PORT=${API_PORT} \
         -e FILE_SERVER_PORT=${FILE_PORT} \
         -v $(pwd)/data/zerotier/dist:/app/dist \
-        -v $(pwd)/data/zerotier/ztncui:/app/ztncui -v $(pwd)/data/zerotier/one:/var/lib/zerotier-one -v /data/config:/app/config xubiaolin/zerotier-planet:latest
+        -v $(pwd)/data/zerotier/ztncui:/app/ztncui -v $(pwd)/data/zerotier/one:/var/lib/zerotier-one -v $(pwd)/data/config:/app/config xubiaolin/zerotier-planet:latest
 }
 
 function menu() {
