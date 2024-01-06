@@ -1,6 +1,8 @@
 #!/bin/bash
 
 function install() {
+    docker pull xubiaolin/zerotier-planet:latest
+
     echo "开始安装，如果你已经安装了，将会删除旧的数据，10s后开始安装..."
     sleep 10
 
@@ -175,6 +177,8 @@ function uninstall() {
 }
 
 function update() {
+    docker pull xubiaolin/zerotier-planet:latest
+    
     docker inspect myztplanet >/dev/null 2>&1
     if [ $? -ne 0 ]; then
         echo "容器myztplanet不存在，请先安装"
