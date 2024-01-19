@@ -39,6 +39,7 @@ QQ交流群：692635772
   - [9. 为什么我的zerotier传输不稳定](#9-为什么我的zerotier传输不稳定)
   - [10.支持域名吗？](#10支持域名吗)
   - [11. ARM服务器可以搭建吗](#11-arm服务器可以搭建吗)
+  - [12. 支持docker-compose启动部署吗](#12-支持docker-compose启动部署吗)
 - [开发计划](#开发计划)
 - [风险声明](#风险声明)
 - [类似项目](#类似项目)
@@ -50,14 +51,14 @@ QQ交流群：692635772
 可以加群联系群主按月购买现成服务,或者添加tg: [https://t.me/uxkram](https://t.me/uxkram)
 
 月付低至10￥，年付低至100￥
-带宽|流量|费用（每月）
--|-|-
-5Mbit|100G|8￥ 
-10Mbit|100G|15￥
-30Mbit|100G|30￥ 
-50Mbit|100G|58￥ 
-100Mbit|100G|98￥
-200Mbit|100G|168￥
+| 带宽    | 流量 | 费用（每月） |
+| ------- | ---- | ------------ |
+| 5Mbit   | 100G | 8￥           |
+| 10Mbit  | 100G | 15￥          |
+| 30Mbit  | 100G | 30￥          |
+| 50Mbit  | 100G | 58￥          |
+| 100Mbit | 100G | 98￥          |
+| 200Mbit | 100G | 168￥         |
 
 流量超出后10￥可购买100G
 
@@ -365,6 +366,37 @@ ab403e2074 1.10.2 LEAF      -1 RELAY
 
 ## 11. ARM服务器可以搭建吗
 暂不支持
+
+## 12. 支持docker-compose启动部署吗
+参考docker-compose文件如下
+
+```
+version: '3'
+
+services:
+  myztplanet:
+    #image: xubiaolin/zerotier-planet:latest
+    image: golimit/ztplanet:latest
+    container_name: ztplanet
+    ports:
+      - 9994:9994
+      - 9994:9994/udp
+      - 3443:3443
+      - 3000:3000
+    environment:
+      - IP_ADDR4=[IPV4IP ADDRESS]
+      - IP_ADDR6=
+      - ZT_PORT=9994
+      - API_PORT=3443
+      - FILE_SERVER_PORT=3000
+    volumes:
+      - ./data/zerotier/dist:/app/dist
+      - ./data/zerotier/ztncui:/app/ztncui
+      - ./data/zerotier/one:/var/lib/zerotier-one
+      - ./data/config:/app/config
+    restart: unless-stopped
+
+```
 
 # 开发计划
 🥰您的捐助可以让开发计划的速度更快🥰
