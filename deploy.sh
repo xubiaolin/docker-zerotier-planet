@@ -218,7 +218,11 @@ function update() {
         -e API_PORT=${API_PORT} \
         -e FILE_SERVER_PORT=${FILE_PORT} \
         -v $(pwd)/data/zerotier/dist:/app/dist \
-        -v $(pwd)/data/zerotier/ztncui:/app/ztncui -v $(pwd)/data/zerotier/one:/var/lib/zerotier-one -v $(pwd)/data/config:/app/config xubiaolin/zerotier-planet:latest
+        -v $(pwd)/data/zerotier/ztncui:/app/ztncui \
+        -v $(pwd)/data/zerotier/one:/var/lib/zerotier-one \
+        -v $(pwd)/data/config:/app/config\
+        --restart unless-stopped
+         xubiaolin/zerotier-planet:latest
 }
 
 function menu() {

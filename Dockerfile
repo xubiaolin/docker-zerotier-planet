@@ -5,6 +5,7 @@ ENV TZ=Asia/Shanghai
 WORKDIR /app
 ADD ./entrypoint.sh /app/entrypoint.sh
 ADD ./http_server.js /app/http_server.js
+ADD ./mkmoonworld-x86_64 /app/mkmoonworld-x86_64
 
 # init tool
 RUN set -x\
@@ -58,6 +59,7 @@ COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /app/http_server.js /app/http_server.js
+COPY --from=builder /app/mkmoonworld-x86_64 /app/mkmoonworld-x86_64
 
 RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     && apk update \
