@@ -345,7 +345,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ## 6. 管理后台忘记密码怎么办：
-建议重装
+执行`./deploy.sh`，选择重置密码即可
 
 ## 7. 为什么连不上planet
 请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。linux机器上也要放行，如果安装了ufw等防火墙工具。
