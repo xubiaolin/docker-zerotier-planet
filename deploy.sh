@@ -93,7 +93,11 @@ function install() {
         -e API_PORT=${API_PORT} \
         -e FILE_SERVER_PORT=${FILE_PORT} \
         -v $(pwd)/data/zerotier/dist:/app/dist \
-        -v $(pwd)/data/zerotier/ztncui:/app/ztncui -v $(pwd)/data/zerotier/one:/var/lib/zerotier-one -v $(pwd)/data/zerotier/config:/app/config xubiaolin/zerotier-planet:latest
+        -v $(pwd)/data/zerotier/ztncui:/app/ztncui \
+	-v $(pwd)/data/zerotier/one:/var/lib/zerotier-one\
+       	-v $(pwd)/data/zerotier/config:/app/config\
+	--restart unless-stopped\
+       	xubiaolin/zerotier-planet:latest
 
     if [ $? -ne 0 ]; then
         echo "安装失败"

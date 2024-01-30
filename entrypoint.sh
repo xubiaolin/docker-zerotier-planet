@@ -35,6 +35,7 @@ function check_zerotier() {
         echo "start mkmoonworld"
         openssl rand -hex 16 > authtoken.secret
 
+        ./zerotier-idtool generate identity.secret identity.public
         ./zerotier-idtool initmoon identity.public >moon.json
 
         if [ -z "$IP_ADDR4" ]; then IP_ADDR4=$(curl -s https://ipv4.icanhazip.com/); fi
@@ -63,7 +64,6 @@ function check_zerotier() {
         jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json >temp.json && mv temp.json moon.json
         ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
 
-        # wget "${GH_MIRROR}https://github.com/kaaass/ZeroTierOne/releases/download/mkmoonworld-1.0/mkmoonworld-x86_64"
         cp /app/mkmoonworld-x86_64 ./mkmoonworld-x86_64
         chmod +x ./mkmoonworld-x86_64
         ./mkmoonworld-x86_64 moon.json
