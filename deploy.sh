@@ -230,7 +230,7 @@ uninstall() {
 #         -v $(pwd)/data/zerotier/dist:/app/dist \
 #         -v $(pwd)/data/zerotier/ztncui:/app/ztncui \
 #         -v $(pwd)/data/zerotier/one:/var/lib/zerotier-one \
-#         -v $(pwd)/data/config:/app/config \
+#         -v $(pwd)/data/zerotier/config:/app/config \
 #         --restart unless-stopped \
 #         xubiaolin/zerotier-planet:latest
 # }
