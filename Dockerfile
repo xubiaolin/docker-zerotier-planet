@@ -1,6 +1,8 @@
 FROM alpine:3.14 as builder
 
 ENV TZ=Asia/Shanghai
+ARG TAG=main
+ENV TAG=${TAG}
 
 WORKDIR /app
 ADD ./entrypoint.sh /app/entrypoint.sh
@@ -19,6 +21,8 @@ RUN set -x\
     && source "$HOME/.cargo/env"\
     && git clone https://github.com/zerotier/ZeroTierOne.git\
     && cd ZeroTierOne\
+    && git checkout ${TAG}\
+    && echo "切换到tag:${TAG}"\
     && make ZT_SYMLINK=1 \
     && make\
     && make install\
