@@ -1,6 +1,7 @@
 TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
-QQ交流群：692635772
+QQ交流群1群（已满）：692635772
+QQ交流群2群：785620313
 
 
 
@@ -422,9 +423,3 @@ services:
 如果觉得本项目对您有帮助，欢迎通过扫描下方赞赏码捐助项目 :)
 
 <img src="asserts/donate.png" alt="donate" width="400" height="400" />
-
-<hr>
-
-<img src='asserts/alipay.jpg' alt='alipay' width='400' height='400'>
-
-复制 852129070 🏮搭开..🏮支付宝去搜索，✔`ho n`g 笣✔送喜庆，幸示 畐到心
