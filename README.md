@@ -396,7 +396,7 @@ services:
       - ./data/zerotier/dist:/app/dist
       - ./data/zerotier/ztncui:/app/ztncui
       - ./data/zerotier/one:/var/lib/zerotier-one
-      - ./data/config:/app/config
+      - ./data/zerotier/config:/app/config
     restart: unless-stopped
 
 ```
