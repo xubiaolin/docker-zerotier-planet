@@ -37,7 +37,7 @@ update_centos_kernal(){
         read -p "内核升级完成，请重启系统，是否立刻重启?(y/n)" reboot
         reboot=${reboot:-n}
         if [[ "$reboot" =~ ^[Yy]$ ]]; then
-            reboot
+            reboot now
         else
             echo "已取消重启"
             exit 0
