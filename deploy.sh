@@ -24,7 +24,7 @@ update_centos_kernal(){
     read -p "是否继续升级内核?(y/n)" continue_update
     continue_update=${continue_update:-n}
     if [[ "$continue_update" =~ ^[Yy]$ ]]; then
-        echo "开始升级内核..."
+        echo "如果配置较低，可能升级时间较长，请耐心等待！开始升级内核..."
         yum update -y
         rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
         yum install https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm -y
