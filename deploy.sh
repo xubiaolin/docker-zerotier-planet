@@ -27,7 +27,7 @@ update_centos_kernal(){
         echo "开始升级内核..."
         yum update -y
         rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
-        yum install https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
+        yum install https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm -y
         yum --disablerepo="*" --enablerepo="elrepo-kernel" list available
         yum --enablerepo=elrepo-kernel install kernel-lt-devel kernel-lt -y
         sudo awk -F\' '$1=="menuentry " {print i++ " : " $2}' /etc/grub2.cfg
