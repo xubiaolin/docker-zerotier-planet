@@ -7,14 +7,15 @@ kernel_check(){
     kernel_version=$(uname -r | cut -d'.' -f1)
     if [[ "$kernel_version" -lt 5 ]]; then
         if [[ "$os_name" == "\"centos\"" ]]; then
-            echo "内核版本太低,请在菜单中选择CentOS内核升级"
+            echo -e "\033[31m内核版本太低,请在菜单中选择CentOS内核升级\033[0m"
             exit 1
         else
-            echo "请自行升级系统内核到5.*及其以上版本"
+            echo -e "\033[31m请自行升级系统内核到5.*及其以上版本\033[0m"   
             exit 1  
         fi
     else
-        echo "系统和内核版本检查通过。"
+        # 绿色文字提示
+        echo -e "\033[32m系统和内核版本检查通过。\033[0m"
     fi
 }
 
