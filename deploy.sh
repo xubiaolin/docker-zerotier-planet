@@ -6,8 +6,13 @@ kernel_check(){
     os_name=$(cat /etc/os-release | grep ^ID= | cut -d'=' -f2)
     kernel_version=$(uname -r | cut -d'.' -f1)
     if [[ "$kernel_version" -lt 5 ]]; then
-        echo "内核版本太低,请在菜单中选择内核升级[仅支持centos]"
-        exit 1
+        if [[ "$os_name" == "centos" ]]; then
+            echo "内核版本太低,请在菜单中选择CentOS内核升级"
+            exit 1
+        else
+            echo "请自行升级系统内核到5.*及其以上版本"
+            exit 1  
+        fi
     else
         echo "系统和内核版本检查通过。"
     fi
