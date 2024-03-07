@@ -1,6 +1,57 @@
 #!/bin/bash
 CONTAINER_NAME=myztplanet
 
+# 如果是centos 且内核版本小于5.*，提示内核版本太低
+kernel_check(){
+    os_name=$(cat /etc/os-release | grep ^ID= | cut -d'=' -f2)
+    kernel_version=$(uname -r | cut -d'.' -f1)
+    if [[ "$kernel_version" -lt 5 ]]; then
+        if [[ "$os_name" == "\"centos\"" ]]; then
+            echo -e "\033[31m内核版本太低,请在菜单中选择CentOS内核升级\033[0m"
+            exit 1
+        else
+            echo -e "\033[31m请自行升级系统内核到5.*及其以上版本\033[0m"   
+            exit 1  
+        fi
+    else
+        echo "当前内核版本为：$kernel_version"
+        echo -e "\033[32m系统和内核版本检查通过。\033[0m"
+    fi
+}
+
+update_centos_kernal(){
+    echo "请注意备份数据，升级内核有风险"
+    read -p "是否继续升级内核?(y/n)" continue_update
+    continue_update=${continue_update:-n}
+    if [[ "$continue_update" =~ ^[Yy]$ ]]; then
+        echo "如果配置较低，可能升级时间较长，请耐心等待！开始升级内核..."
+        yum update -y
+        rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+        yum install https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm -y
+        yum --disablerepo="*" --enablerepo="elrepo-kernel" list available
+        yum --enablerepo=elrepo-kernel install kernel-lt-devel kernel-lt -y
+        sudo awk -F\' '$1=="menuentry " {print i++ " : " $2}' /etc/grub2.cfg
+        grub2-set-default 0
+        grub2-mkconfig -o /boot/grub2/grub.cfg
+
+        read -p "内核升级完成，请重启系统，是否立刻重启?(y/n)" reboot
+        reboot=${reboot:-n}
+        if [[ "$reboot" =~ ^[Yy]$ ]]; then
+            reboot now
+        else
+            echo "已取消重启"
+            exit 0
+        fi
+
+        echo "内核升级完成，请重启系统"
+        exit 0
+    else
+        echo "已取消升级内核"
+        exit 0
+    fi
+
+}
+
 install_lsof() {
     if [ ! -f "/usr/bin/lsof" ]; then
         echo "开始安装lsof工具..."
@@ -32,6 +83,8 @@ read_port() {
 }
 
 install() {
+    kernel_check
+
     echo "开始安装，如果你已经安装了，将会删除旧的数据，10s后开始安装..."
     sleep 10
 
@@ -261,6 +314,7 @@ menu() {
     # echo "3. 更新"
     echo "4. 查看信息"
     echo "5. 重置密码"
+    echo "6. CentOS内核升级"
     echo "0. 退出"
     read -p "请输入数字：" num
     case "$num" in
@@ -269,6 +323,7 @@ menu() {
     # [3]) update ;;
     [4]) info ;;
     [5]) resetpwd ;;
+    [6]) update_centos_kernal ;;
     [0]) exit ;;
     *) echo "请输入正确数字 [1-5]" ;;
     esac
