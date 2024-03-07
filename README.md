@@ -118,7 +118,7 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 
 加速地址
 ```
-git clone https://ghproxy.markxu.online/https://github.com/xubiaolin/docker-zerotier-planet.git
+git clone https://ghproxy.imoyuapp.win/https://github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
 ## 3.3：执行安装脚本
