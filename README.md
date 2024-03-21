@@ -358,7 +358,7 @@ ab403e2074 1.10.2 LEAF      -1 RELAY
 暂不支持
 
 ## 11. ARM服务器可以搭建吗
-暂不支持
+暂不支持, 但是ARM可以作为客户端使用
 
 ## 12. 支持docker-compose启动部署吗
 参考docker-compose文件如下
