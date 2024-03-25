@@ -232,7 +232,7 @@ PS C:\Windows\system32>
 
 到这里就加入网络成功了
 
-## 4.2 Linux 客户端
+## 4.2 Linux 客户端(openwrt可以参考这个)
 步骤如下：
 
 1. 安装linux客户端软件
