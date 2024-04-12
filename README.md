@@ -368,8 +368,7 @@ version: '3'
 
 services:
   myztplanet:
-    #image: xubiaolin/zerotier-planet:latest
-    image: golimit/ztplanet:latest
+    image: xubiaolin/zerotier-planet:latest
     container_name: ztplanet
     ports:
       - 9994:9994
