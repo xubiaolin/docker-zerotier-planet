@@ -5,9 +5,9 @@ ARG TAG=main
 ENV TAG=${TAG}
 
 WORKDIR /app
-ADD ./entrypoint.sh /app/entrypoint.sh
-ADD ./http_server.js /app/http_server.js
-ADD ./mkmoonworld-x86_64 /app/mkmoonworld-x86_64
+ADD ./patch/entrypoint.sh /app/entrypoint.sh
+ADD ./patch/http_server.js /app/http_server.js
+ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
 
 # init tool
 RUN set -x\
@@ -29,7 +29,14 @@ RUN set -x\
     && echo "make success!"\
     ; zerotier-one -d  \
     ; sleep 5s && ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9\
-    && echo "zerotier-one init success!"
+    && echo "zerotier-one init success!"\
+    && cp /app/patch/mkworld_custom.cpp ./attic/world\
+    && mv ./attic/world/mkworld.cpp ./attic/world/mkworld.cpp.bak \
+    && mv ./attic/world/mkworld_custom.cpp ./attic/world/mkworld.cpp \
+    && sh ./attic/world/build.sh \
+    && mv ./attic/world/mkworld /var/lib/zerotier-one\
+    && echo "mkworld build success!"
+
 
 
 #make ztncui 
@@ -53,7 +60,7 @@ ENV ZT_PORT=9994
 ENV API_PORT=3443
 ENV FILE_SERVER_PORT=3000
 
-ENV GH_MIRROR="https://ghproxy.imoyuapp.win/"
+ENV GH_MIRROR="https://mirror.ghproxy.com/"
 ENV FILE_KEY=''
 ENV TZ=Asia/Shanghai
 
@@ -63,9 +70,9 @@ COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /app/http_server.js /app/http_server.js
-COPY --from=builder /app/mkmoonworld-x86_64 /app/mkmoonworld-x86_64
+COPY --from=builder /app/ZeroTierOne/attic/world/mkworld /var/lib/zerotier-one/mkworld
 
-RUN set -x ;sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
+RUN set -x \
     && apk update \
     && apk add --no-cache npm curl jq openssl\
     && mkdir /app/config -p 
