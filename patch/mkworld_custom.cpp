@@ -92,7 +92,7 @@ int jsonToBinary() {
 	const uint64_t ts = 1567191349589ULL; // August 30th, 2019
 
 	std::string fileContent;
-	if (!OSUtils::readFile("config.json", fileContent)) {
+	if (!OSUtils::readFile("moon.json", fileContent)) {
 		fprintf(stderr, "Failed to open config file." ZT_EOL_S);
 		return 1;
 	}

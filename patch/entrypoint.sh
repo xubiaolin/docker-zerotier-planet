@@ -64,7 +64,7 @@ function check_zerotier() {
         jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json >temp.json && mv temp.json moon.json
         ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
 
-        ./mkworld moon.json
+        ./mkworld
         if [ $? -ne 0 ]; then
             echo "mkmoonworld failed!"
             exit 1
