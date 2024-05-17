@@ -2,106 +2,124 @@
 
 set -x 
 
+# 配置路径和端口
+ZEROTIER_PATH="/var/lib/zerotier-one"
+APP_PATH="/app"
+CONFIG_PATH="${APP_PATH}/config"
+BACKUP_PATH="/bak"
+ZTNCUI_PATH="${APP_PATH}/ztncui"
+ZTNCUI_SRC_PATH="${ZTNCUI_PATH}/src"
+
+# 启动 ZeroTier 和 ztncui
 function start() {
-    echo "start ztncui and zerotier"
-    cd /var/lib/zerotier-one && ./zerotier-one -p$(cat /app/config/zerotier-one.port) -d || exit 1
-    nohup node /app/http_server.js &> /app/server.log & 
-    cd /app/ztncui/src && npm start || exit 1
+    echo "Start ztncui and zerotier"
+    cd $ZEROTIER_PATH && ./zerotier-one -p$(cat ${CONFIG_PATH}/zerotier-one.port) -d || exit 1
+    nohup node ${APP_PATH}/http_server.js &> ${APP_PATH}/server.log & 
+    cd $ZTNCUI_SRC_PATH && npm start || exit 1
 }
 
-function check_file_server(){
-    if [ ! -f "/app/config/file_server.port" ]; then
-        echo "file_server.port is not exist, generate it"
-        echo "${FILE_SERVER_PORT}" >/app/config/file_server.port
-        echo "${FILE_SERVER_PORT}"
+# 检查文件服务器端口配置文件
+function check_file_server() {
+    if [ ! -f "${CONFIG_PATH}/file_server.port" ]; then
+        echo "file_server.port does not exist, generating it"
+        echo "${FILE_SERVER_PORT}" > ${CONFIG_PATH}/file_server.port
     else
-        echo "file_server.port is exist, read it"
-        FILE_SERVER_PORT=$(cat /app/config/file_server.port)
-        echo "${FILE_SERVER_PORT}"
+        echo "file_server.port exists, reading it"
+        FILE_SERVER_PORT=$(cat ${CONFIG_PATH}/file_server.port)
     fi
+    echo "${FILE_SERVER_PORT}"
 }
 
+# 初始化 ZeroTier 数据
+function init_zerotier_data() {
+    echo "Initializing ZeroTier data"
+    echo "${ZT_PORT}" > ${CONFIG_PATH}/zerotier-one.port
+    cp -r ${BACKUP_PATH}/zerotier-one/* $ZEROTIER_PATH
+
+    cd $ZEROTIER_PATH
+    openssl rand -hex 16 > authtoken.secret
+    ./zerotier-idtool generate identity.secret identity.public
+    ./zerotier-idtool initmoon identity.public > moon.json
+
+    IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
+    IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
+
+    echo "IP_ADDR4=$IP_ADDR4"
+    echo "IP_ADDR6=$IP_ADDR6"
+    ZT_PORT=$(cat ${CONFIG_PATH}/zerotier-one.port)
+    echo "ZT_PORT=$ZT_PORT"
+
+    if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ]; then
+        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"
+    elif [ -n "$IP_ADDR4" ]; then
+        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"
+    elif [ -n "$IP_ADDR6" ]; then
+        stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"
+    else
+        echo "IP_ADDR4 and IP_ADDR6 are both empty!"
+        exit 1
+    fi
+
+    echo "$IP_ADDR4" > ${CONFIG_PATH}/ip_addr4
+    echo "$IP_ADDR6" > ${CONFIG_PATH}/ip_addr6
+    echo "stableEndpoints=$stableEndpoints"
+
+    jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json
+    ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
+
+    ./mkworld
+    if [ $? -ne 0 ]; then
+        echo "mkmoonworld failed!"
+        exit 1
+    fi
+
+    mkdir -p ${APP_PATH}/dist/
+    mv world.bin ${APP_PATH}/dist/planet
+    cp *.moon ${APP_PATH}/dist/
+    echo "mkmoonworld success!"
+}
+
+# 检查并初始化 ZeroTier
 function check_zerotier() {
-    mkdir -p /var/lib/zerotier-one
-    if [ "$(ls -A /var/lib/zerotier-one)" ]; then
-        echo "/var/lib/zerotier-one is not empty, start directly"
-    else    
-        mkdir -p /app/config
-        echo "/var/lib/zerotier-one is empty, init data"
-        echo "${ZT_PORT}" >/app/config/zerotier-one.port
-        cp -r /bak/zerotier-one/* /var/lib/zerotier-one/
-
-        cd /var/lib/zerotier-one
-        echo "start mkmoonworld"
-        openssl rand -hex 16 > authtoken.secret
-
-        ./zerotier-idtool generate identity.secret identity.public
-        ./zerotier-idtool initmoon identity.public >moon.json
-
-        if [ -z "$IP_ADDR4" ]; then IP_ADDR4=$(curl -s https://ipv4.icanhazip.com/); fi
-        if [ -z "$IP_ADDR6" ]; then IP_ADDR6=$(curl -s https://ipv6.icanhazip.com/); fi
-
-        echo "IP_ADDR4=$IP_ADDR4"
-        echo "IP_ADDR6=$IP_ADDR6"
-
-        ZT_PORT=$(cat /app/config/zerotier-one.port)
-
-        echo "ZT_PORT=$ZT_PORT"
-
-        if [ -z "$IP_ADDR4" ]; then stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"; fi
-        if [ -z "$IP_ADDR6" ]; then stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"; fi
-        if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ]; then stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"; fi
-        if [ -z "$IP_ADDR4" ] && [ -z "$IP_ADDR6" ]; then
-            echo "IP_ADDR4 and IP_ADDR6 are both empty!"
-            exit 1
-        fi
-
-        echo "$IP_ADDR4">/app/config/ip_addr4
-        echo "$IP_ADDR6">/app/config/ip_addr6
-
-        echo "stableEndpoints=$stableEndpoints"
-
-        jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json >temp.json && mv temp.json moon.json
-        ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
-
-        ./mkworld
-        if [ $? -ne 0 ]; then
-            echo "mkmoonworld failed!"
-            exit 1
-        fi
-
-        mkdir -p /app/dist/
-        mv world.bin /app/dist/planet
-        cp *.moon /app/dist/
-        echo -e "mkmoonworld success!\n"
+    mkdir -p $ZEROTIER_PATH
+    if [ "$(ls -A $ZEROTIER_PATH)" ]; then
+        echo "$ZEROTIER_PATH is not empty, starting directly"
+    else
+        init_zerotier_data
     fi
 }
 
-function check_ztncui() {
-    mkdir -p /app/ztncui
-    if [ "$(ls -A /app/ztncui)" ]; then
-        echo "${API_PORT}" >/app/config/ztncui.port
-        echo "/app/ztncui is not empty, start directly"
-    else
-        echo "/app/ztncui is empty, init data"
-        cp -r /bak/ztncui/* /app/ztncui/
+# 初始化 ztncui 数据
+function init_ztncui_data() {
+    echo "Initializing ztncui data"
+    cp -r ${BACKUP_PATH}/ztncui/* $ZTNCUI_PATH
 
-        echo "config ztncui"
-        mkdir -p /app/config
-        echo "${API_PORT}" >/app/config/ztncui.port
-        cd /app/ztncui/src
-        echo "HTTP_PORT=${API_PORT}" >.env &&
-            echo 'NODE_ENV=production' >>.env &&
-            echo 'HTTP_ALL_INTERFACES=true' >>.env &&
-            echo "ZT_ADDR=localhost:${ZT_PORT}" >>.env && echo "${ZT_PORT}" >/app/config/zerotier-one.port &&
-            cp -v etc/default.passwd etc/passwd && TOKEN=$(cat /var/lib/zerotier-one/authtoken.secret) &&
-            echo "ZT_TOKEN=$TOKEN" >>.env &&
-            echo "make ztncui success!"
+    echo "Configuring ztncui"
+    mkdir -p ${CONFIG_PATH}
+    echo "${API_PORT}" > ${CONFIG_PATH}/ztncui.port
+    cd $ZTNCUI_SRC_PATH
+    echo "HTTP_PORT=${API_PORT}" > .env
+    echo 'NODE_ENV=production' >> .env
+    echo 'HTTP_ALL_INTERFACES=true' >> .env
+    echo "ZT_ADDR=localhost:${ZT_PORT}" >> .env
+    cp -v etc/default.passwd etc/passwd
+    TOKEN=$(cat ${ZEROTIER_PATH}/authtoken.secret)
+    echo "ZT_TOKEN=$TOKEN" >> .env
+    echo "ztncui configuration successful!"
+}
+
+# 检查并初始化 ztncui
+function check_ztncui() {
+    mkdir -p $ZTNCUI_PATH
+    if [ "$(ls -A $ZTNCUI_PATH)" ]; then
+        echo "${API_PORT}" > ${CONFIG_PATH}/ztncui.port
+        echo "$ZTNCUI_PATH is not empty, starting directly"
+    else
+        init_ztncui_data
     fi
 }
 
 check_file_server
 check_zerotier
 check_ztncui
-
 start
