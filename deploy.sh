@@ -1,4 +1,5 @@
 #!/bin/bash
+
 CONTAINER_NAME="myztplanet"
 ZEROTIER_PATH="$(pwd)/data/zerotier"
 CONFIG_PATH="${ZEROTIER_PATH}/config"
@@ -6,19 +7,25 @@ DIST_PATH="${ZEROTIER_PATH}/dist"
 ZTNCUI_PATH="${ZEROTIER_PATH}/ztncui"
 DOCKER_IMAGE="xubiaolin/zerotier-planet:latest"
 
+print_message() {
+    local message=$1
+    local color_code=$2
+    echo -e "\033[${color_code}m${message}\033[0m"
+}
+
 # 检查内核版本
 kernel_check() {
-    os_name=$(grep ^ID= /etc/os-release | cut -d'=' -f2)
+    os_name=$(grep ^ID= /etc/os-release | cut -d'=' -f2 | tr -d '"')
     kernel_version=$(uname -r | cut -d'.' -f1)
-    if [[ "$kernel_version" -lt 5 ]]; then
-        if [[ "$os_name" == "\"centos\"" ]]; then
-            echo -e "\033[31m内核版本太低,请在菜单中选择CentOS内核升级\033[0m"
+    if ((kernel_version < 5)); then
+        if [[ "$os_name" == "centos" ]]; then
+            print_message "内核版本太低,请在菜单中选择CentOS内核升级" "31"
         else
-            echo -e "\033[31m请自行升级系统内核到5.*及其以上版本\033[0m"
+            print_message "请自行升级系统内核到5.*及其以上版本" "31"
         fi
         exit 1
     else
-        echo -e "\033[32m系统和内核版本检查通过，当前内核版本为：$kernel_version\033[0m"
+        print_message "系统和内核版本检查通过，当前内核版本为：$kernel_version" "32"
     fi
 }
 
@@ -50,11 +57,11 @@ update_centos_kernel() {
 
 # 安装lsof工具
 install_lsof() {
-    if [ ! -f "/usr/bin/lsof" ]; then
+    if ! command -v lsof &>/dev/null; then
         echo "开始安装lsof工具..."
-        if [ -f "/usr/bin/apt" ]; then
+        if command -v apt &>/dev/null; then
             apt update && apt install -y lsof
-        elif [ -f "/usr/bin/yum" ]; then
+        elif command -v yum &>/dev/null; then
             yum install -y lsof
         fi
     fi
@@ -63,7 +70,7 @@ install_lsof() {
 # 检查端口是否被占用
 check_port() {
     local port=$1
-    if [ $(lsof -i:${port} | wc -l) -gt 0 ]; then
+    if lsof -i:${port} &>/dev/null; then
         echo "端口${port}已被占用，请重新输入"
         exit 1
     fi
@@ -73,9 +80,10 @@ check_port() {
 read_port() {
     local port
     local prompt=$1
-    read -p "${prompt}" port
-    while [[ ! "$port" =~ ^[0-9]+$ ]]; do
-        read -p "端口号必须是数字，请重新输入: " port
+    while :; do
+        read -p "${prompt}" port
+        [[ "$port" =~ ^[0-9]+$ ]] && break
+        echo "端口号必须是数字，请重新输入: "
     done
     check_port $port
     echo $port
@@ -93,15 +101,14 @@ configure_ip() {
 install() {
     kernel_check
 
-    # 如果容器已经存在，检查是否有新版本
-    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 && {
+    if docker inspect ${CONTAINER_NAME} &>/dev/null; then
         echo "容器${CONTAINER_NAME}已经存在"
         read -p "是否更新版本?(y/n) " update_version
         if [[ "$update_version" =~ ^[Yy]$ ]]; then
             upgrade
             exit 0
         fi
-    }
+    fi
 
     echo "开始安装，如果你已经安装了，将会删除旧的数据，10秒后开始安装..."
     sleep 10
@@ -175,7 +182,6 @@ install() {
 }
 
 install_from_config() {
-    # 判断CONFIG_PATH是否存在，且不为空
     if [ ! -d "${CONFIG_PATH}" ] || [ ! "$(ls -A ${CONFIG_PATH})" ]; then
         echo "配置文件目录不存在或为空，请先上传配置文件"
         exit 1
@@ -186,7 +192,6 @@ install_from_config() {
         cat ${CONFIG_PATH}/${config_name} | tr -d '\r'
     }
 
-    # 从data/zerotier/config里面取
     ipv4=$(extract_config "ip_addr4")
     ipv6=$(extract_config "ip_addr6")
     API_PORT=$(extract_config "ztncui.port")
@@ -225,22 +230,19 @@ install_from_config() {
 }
 
 upgrade() {
-    #如果容器不存在，报错
-    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 || {
+    if ! docker inspect ${CONTAINER_NAME} &>/dev/null; then
         echo "容器${CONTAINER_NAME}不存在，请先安装"
         exit 1
-    }
+    fi
 
-    # 从dockerhub pull最新的镜像,比较镜像id,判断镜像是否有新版本
     docker pull ${DOCKER_IMAGE}
     new_image_id=$(docker inspect ${DOCKER_IMAGE} --format='{{.Id}}')
     old_image_id=$(docker inspect ${CONTAINER_NAME} --format='{{.Image}}')
     if [ "$new_image_id" == "$old_image_id" ]; then
-        echo -e "\033[32m当前版本已经是最新版本\033[0m"
+        print_message "当前版本已经是最新版本" "32"
         exit 0
     else
         echo "发现新版本，开始升级...new_image_id:${new_image_id},old_image_id:${old_image_id}"
-        # 提示数据备份
         echo "更新可能存在风险，请手动备份data目录中的数据,谨慎操作"
         read -p "是否继续升级?(y/n) " continue_upgrade
         if [[ ! "$continue_upgrade" =~ ^[Yy]$ ]]; then
@@ -256,43 +258,38 @@ upgrade() {
     install_from_config
 }
 
-# 查看信息
 info() {
-    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 || {
+    if ! docker inspect ${CONTAINER_NAME} &>/dev/null; then
         echo "容器${CONTAINER_NAME}不存在，请先安装"
         exit 1
-    }
+    fi
 
     extract_config() {
         local config_name=$1
         cat ${CONFIG_PATH}/${config_name} | tr -d '\r'
-        # docker exec -it ${CONTAINER_NAME} sh -c "cat /app/config/${config_name}" | tr -d '\r'
     }
 
-    # 从data/zerotier/config里面取
     ipv4=$(extract_config "ip_addr4")
     ipv6=$(extract_config "ip_addr6")
     API_PORT=$(extract_config "ztncui.port")
     FILE_PORT=$(extract_config "file_server.port")
     ZT_PORT=$(extract_config "zerotier-one.port")
     KEY=$(extract_config "file_server.key")
-
     MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
 
     echo "---------------------------"
-    echo "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}"
+    print_message "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}" "32"
     echo "---------------------------"
     echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
     echo "默认用户名：admin"
     echo "默认密码：password"
     echo "请及时修改密码"
     echo "---------------------------"
-    echo "moon配置和planet配置在 ${DIST_PATH} 目录下"
-    echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
-    echo "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
+    print_message "moon配置和planet配置在 ${DIST_PATH} 目录下" "32"
+    print_message "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} " "32"
+    print_message "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} " "32"
 }
 
-# 卸载zerotier-planet
 uninstall() {
     echo "开始卸载..."
 
@@ -308,7 +305,6 @@ uninstall() {
     echo "卸载完成"
 }
 
-# 重置密码
 resetpwd() {
     docker exec -it ${CONTAINER_NAME} sh -c 'cp /app/ztncui/src/etc/default.passwd /app/ztncui/src/etc/passwd'
     if [ $? -ne 0 ]; then
@@ -328,7 +324,6 @@ resetpwd() {
     echo "--------------------------------"
 }
 
-# 菜单
 menu() {
     echo "欢迎使用zerotier-planet脚本，请选择需要执行的操作："
     echo "1. 安装"
