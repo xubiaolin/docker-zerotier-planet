@@ -1,5 +1,4 @@
 #!/bin/bash
-
 CONTAINER_NAME="myztplanet"
 ZEROTIER_PATH="$(pwd)/data/zerotier"
 CONFIG_PATH="${ZEROTIER_PATH}/config"
@@ -94,6 +93,16 @@ configure_ip() {
 install() {
     kernel_check
 
+    # 如果容器已经存在，检查是否有新版本
+    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 && {
+        echo "容器${CONTAINER_NAME}已经存在"
+        read -p "是否更新版本?(y/n) " update_version
+        if [[ "$update_version" =~ ^[Yy]$ ]]; then
+            upgrade
+            exit 0
+        fi
+    }
+
     echo "开始安装，如果你已经安装了，将会删除旧的数据，10秒后开始安装..."
     sleep 10
 
@@ -165,22 +174,110 @@ install() {
     echo "---------------------------"
 }
 
-# 查看信息
-info() {
-    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 || { echo "容器${CONTAINER_NAME}不存在，请先安装"; exit 1; }
+install_from_config() {
+    # 判断CONFIG_PATH是否存在，且不为空
+    if [ ! -d "${CONFIG_PATH}" ] || [ ! "$(ls -A ${CONFIG_PATH})" ]; then
+        echo "配置文件目录不存在或为空，请先上传配置文件"
+        exit 1
+    fi
 
     extract_config() {
         local config_name=$1
-        docker exec -it ${CONTAINER_NAME} sh -c "cat /app/config/${config_name}" | tr -d '\r'
+        cat ${CONFIG_PATH}/${config_name} | tr -d '\r'
     }
 
+    # 从data/zerotier/config里面取
     ipv4=$(extract_config "ip_addr4")
     ipv6=$(extract_config "ip_addr6")
     API_PORT=$(extract_config "ztncui.port")
     FILE_PORT=$(extract_config "file_server.port")
     ZT_PORT=$(extract_config "zerotier-one.port")
     KEY=$(extract_config "file_server.key")
-    MOON_NAME=$(docker exec -it ${CONTAINER_NAME} sh -c "ls /app/dist | grep moon" | tr -d '\r')
+    MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
+
+    echo "---------------------------"
+    echo "ipv4:${ipv4}"
+    echo "ipv6:${ipv6}"
+    echo "API_PORT:${API_PORT}"
+    echo "FILE_PORT:${FILE_PORT}"
+    echo "ZT_PORT:${ZT_PORT}"
+    echo "KEY:${KEY}"
+    echo "MOON_NAME:${MOON_NAME}"
+    echo "---------------------------"
+
+    docker run -d \
+        --name ${CONTAINER_NAME} \
+        -p ${ZT_PORT}:${ZT_PORT} \
+        -p ${ZT_PORT}:${ZT_PORT}/udp \
+        -p ${API_PORT}:${API_PORT} \
+        -p ${FILE_PORT}:${FILE_PORT} \
+        -e IP_ADDR4=${ipv4} \
+        -e IP_ADDR6=${ipv6} \
+        -e ZT_PORT=${ZT_PORT} \
+        -e API_PORT=${API_PORT} \
+        -e FILE_SERVER_PORT=${FILE_PORT} \
+        -v ${DIST_PATH}:/app/dist \
+        -v ${ZTNCUI_PATH}:/app/ztncui \
+        -v ${ZEROTIER_PATH}/one:/var/lib/zerotier-one \
+        -v ${CONFIG_PATH}:/app/config \
+        --restart unless-stopped \
+        ${DOCKER_IMAGE}
+}
+
+upgrade() {
+    #如果容器不存在，报错
+    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 || {
+        echo "容器${CONTAINER_NAME}不存在，请先安装"
+        exit 1
+    }
+
+    # 从dockerhub pull最新的镜像,比较镜像id,判断镜像是否有新版本
+    docker pull ${DOCKER_IMAGE}
+    new_image_id=$(docker inspect ${DOCKER_IMAGE} --format='{{.Id}}')
+    old_image_id=$(docker inspect ${CONTAINER_NAME} --format='{{.Image}}')
+    if [ "$new_image_id" == "$old_image_id" ]; then
+        echo -e "\033[32m当前版本已经是最新版本\033[0m"
+        exit 0
+    else
+        echo "发现新版本，开始升级...new_image_id:${new_image_id},old_image_id:${old_image_id}"
+        # 提示数据备份
+        echo "更新可能存在风险，请手动备份data目录中的数据,谨慎操作"
+        read -p "是否继续升级?(y/n) " continue_upgrade
+        if [[ ! "$continue_upgrade" =~ ^[Yy]$ ]]; then
+            echo "已取消升级"
+            exit 0
+        fi
+    fi
+
+    echo "开始升级，将会删除旧的容器，10秒后开始升级..."
+    sleep 10
+
+    docker rm -f ${CONTAINER_NAME} || true
+    install_from_config
+}
+
+# 查看信息
+info() {
+    docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 || {
+        echo "容器${CONTAINER_NAME}不存在，请先安装"
+        exit 1
+    }
+
+    extract_config() {
+        local config_name=$1
+        cat ${CONFIG_PATH}/${config_name} | tr -d '\r'
+        # docker exec -it ${CONTAINER_NAME} sh -c "cat /app/config/${config_name}" | tr -d '\r'
+    }
+
+    # 从data/zerotier/config里面取
+    ipv4=$(extract_config "ip_addr4")
+    ipv6=$(extract_config "ip_addr6")
+    API_PORT=$(extract_config "ztncui.port")
+    FILE_PORT=$(extract_config "file_server.port")
+    ZT_PORT=$(extract_config "zerotier-one.port")
+    KEY=$(extract_config "file_server.key")
+
+    MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
 
     echo "---------------------------"
     echo "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}"
@@ -236,21 +333,21 @@ menu() {
     echo "欢迎使用zerotier-planet脚本，请选择需要执行的操作："
     echo "1. 安装"
     echo "2. 卸载"
-    # echo "3. 更新"
+    echo "3. 更新"
     echo "4. 查看信息"
     echo "5. 重置密码"
     echo "6. CentOS内核升级"
     echo "0. 退出"
     read -p "请输入数字：" num
     case "$num" in
-        1) install ;;
-        2) uninstall ;;
-        # 3) update ;;
-        4) info ;;
-        5) resetpwd ;;
-        6) update_centos_kernel ;;
-        0) exit ;;
-        *) echo "请输入正确数字 [0-6]" ;;
+    1) install ;;
+    2) uninstall ;;
+    3) upgrade ;;
+    4) info ;;
+    5) resetpwd ;;
+    6) update_centos_kernel ;;
+    0) exit ;;
+    *) echo "请输入正确数字 [0-6]" ;;
     esac
 }
 
