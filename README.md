@@ -108,6 +108,12 @@ yum update && yum install git -y
 curl -fsSL https://get.docker.com |bash 
 ```
 
+如果网络问题，导致无法安装，可以使用国内镜像安装：
+```
+curl -fsSL get.docker.com -o get-docker.sh
+sudo sh get-docker.sh --mirror Aliyun
+```
+
 ### 3.1.3 启动docker
 ```bash
 service docker start

@@ -5,7 +5,7 @@ ZEROTIER_PATH="$(pwd)/data/zerotier"
 CONFIG_PATH="${ZEROTIER_PATH}/config"
 DIST_PATH="${ZEROTIER_PATH}/dist"
 ZTNCUI_PATH="${ZEROTIER_PATH}/ztncui"
-DOCKER_IMAGE="xubiaolin/zerotier-planet:latest"
+DOCKER_IMAGE="docker.mirrors.imoyuapp.win/xubiaolin/zerotier-planet:latest"
 
 print_message() {
     local message=$1
