@@ -16,6 +16,7 @@ QQ交流群2群：785620313
     - [3.1.1 安装git](#311-安装git)
     - [3.1.2 安装docker](#312-安装docker)
     - [3.1.3 启动docker](#313-启动docker)
+    - [3.1.4 配置docker加速镜像（可选，不配也可以）](#314-配置docker加速镜像可选不配也可以)
   - [3.2：下载项目源码](#32下载项目源码)
   - [3.3：执行安装脚本](#33执行安装脚本)
   - [3.4 下载 `planet` 文件](#34-下载-planet-文件)
@@ -25,7 +26,7 @@ QQ交流群2群：785620313
 - [4.客户端配置](#4客户端配置)
   - [4.1 Windows 配置](#41-windows-配置)
     - [4.2 加入网络](#42-加入网络)
-  - [4.2 Linux 客户端](#42-linux-客户端)
+  - [4.2 Linux 客户端(openwrt可以参考这个)](#42-linux-客户端openwrt可以参考这个)
   - [4.3 安卓客户端配置](#43-安卓客户端配置)
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
 - [参考链接](#参考链接)
@@ -48,6 +49,7 @@ QQ交流群2群：785620313
 - [风险声明](#风险声明)
 - [类似项目](#类似项目)
 - [捐助和支持](#捐助和支持)
+- [鸣谢](#鸣谢)
 
 # 0: 广告
 **不想自己搭建?**
@@ -111,6 +113,21 @@ curl -fsSL https://get.docker.com |bash
 ### 3.1.3 启动docker
 ```bash
 service docker start
+```
+
+### 3.1.4 配置docker加速镜像（可选，不配也可以）
+```
+sudo tee /etc/docker/daemon.json <<EOF
+{
+    "registry-mirrors": [
+        "https: //docker.mirrors.aster.edu.pl",
+        "https://docker.mirrors.imoyuapp.win"
+    ]
+}
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
 ```
   
 ## 3.2：下载项目源码
