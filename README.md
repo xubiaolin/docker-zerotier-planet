@@ -1,8 +1,8 @@
 TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
-QQ交流群1群（已满）：692635772
-QQ交流群2群：785620313
-QQ交流群3群：316239544
+- QQ交流群1群（已满）：692635772
+- QQ交流群2群：785620313
+- QQ交流群3群：316239544
 
 **Feature:**
 1. 支持Linux/AMD64、支持Linux/ARM64
@@ -385,7 +385,7 @@ ab403e2074 1.10.2 LEAF      -1 RELAY
 暂不支持
 
 ## 11. ARM服务器可以搭建吗
-暂不支持, 但是ARM可以作为客户端使用
+可以
 
 ## 12. 支持docker-compose启动部署吗
 参考docker-compose文件如下
