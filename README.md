@@ -127,7 +127,7 @@ service docker start
 sudo tee /etc/docker/daemon.json <<EOF
 {
     "registry-mirrors": [
-        "https: //docker.mirrors.aster.edu.pl",
+        "https://docker.mirrors.aster.edu.pl",
         "https://docker.mirrors.imoyuapp.win"
     ]
 }
