@@ -15,4 +15,4 @@ latest_docker_tag=$(curl -s "https://hub.docker.com/v2/repositories/${DOCKER_IMA
 
 echo "Latest tag for $USER/$REPO matching latest is: $latest_tag"
 docker buildx build --platform linux/arm64,linux/amd64,linux/arm/v7 -t "$DOCKER_IMAGE":latest --push .
-docker buildx build --platform linux/arm64,linux/amd64,linux/arm/v7-t "${DOCKER_IMAGE}:${latest_tag}" --push .
+docker buildx build --platform linux/arm64,linux/amd64,linux/arm/v7 -t "${DOCKER_IMAGE}:${latest_tag}" --push .
