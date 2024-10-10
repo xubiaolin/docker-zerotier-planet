@@ -27,9 +27,10 @@ TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 - [4.客户端配置](#4客户端配置)
   - [4.1 Windows 配置](#41-windows-配置)
     - [4.2 加入网络](#42-加入网络)
-  - [4.2 Linux 客户端(openwrt可以参考这个)](#42-linux-客户端openwrt可以参考这个)
+  - [4.2 Linux 客户端](#42-linux-客户端)
   - [4.3 安卓客户端配置](#43-安卓客户端配置)
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
+  - [4.5 openwrt 客户端配置](#45-openwrt-客户端配置)
 - [参考链接](#参考链接)
 - [5. 管理面板SSL配置](#5-管理面板ssl配置)
 - [6. 卸载](#6-卸载)
@@ -259,7 +260,7 @@ PS C:\Windows\system32>
 
 到这里就加入网络成功了
 
-## 4.2 Linux 客户端(openwrt可以参考这个)
+## 4.2 Linux 客户端
 步骤如下：
 
 1. 安装linux客户端软件
@@ -281,6 +282,17 @@ PS C:\Windows\system32>
 3. 加入网络 `zerotier-cli join` 网络 `id`
 4. 管理后台同意加入请求
 5. `zerotier-cli peers` 可以看到` planet` 角色
+
+## 4.5 openwrt 客户端配置
+步骤如下：
+
+1. 安装zerotier客户端
+2. 进入目录 `/etc/config/zero/planet`
+3. 替换目录下的 `planet` 文件
+4. 在openwrt网页后台重启zerotier服务
+5. 在openwrt网页后台加入网络
+6. 管理后台同意加入请求
+7. `zerotier-cli peers` 可以看到` planet` 角色
 
 # 参考链接
 [zerotier-虚拟局域网详解](https://www.glimmer.ltd/2021/3299983056/)
