@@ -30,7 +30,7 @@ TG交流群：https://t.me/+JduuWfhSEPdlNDk1
   - [4.2 Linux 客户端](#42-linux-客户端)
   - [4.3 安卓客户端配置](#43-安卓客户端配置)
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
-  - [4.5 openwrt 客户端配置](#45-openwrt-客户端配置)
+  - [4.5 OpenWRT 客户端配置](#45-openwrt-客户端配置)
 - [参考链接](#参考链接)
 - [5. 管理面板SSL配置](#5-管理面板ssl配置)
 - [6. 卸载](#6-卸载)
@@ -283,7 +283,7 @@ PS C:\Windows\system32>
 4. 管理后台同意加入请求
 5. `zerotier-cli peers` 可以看到` planet` 角色
 
-## 4.5 openwrt 客户端配置
+## 4.5 OpenWRT 客户端配置
 步骤如下：
 
 1. 安装zerotier客户端
