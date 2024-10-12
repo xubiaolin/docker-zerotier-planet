@@ -6,4 +6,4 @@ DOCKER_IMAGE="xubiaolin/zerotier-planet"
 
 
  
-docker buildx build --platform linux/arm64,linux/amd64 -t "$DOCKER_IMAGE":latest .
+docker buildx build --platform linux/amd64 -t "$DOCKER_IMAGE":latest .
