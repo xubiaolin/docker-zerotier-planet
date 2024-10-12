@@ -24,7 +24,7 @@ jobs:
 
       - name: Modify
         run : |
-          echo $pwd
+          cd docker-zerotier-planet
           sh copy.sh
 
       - name: Set up Docker Buildx
@@ -37,4 +37,6 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
-        run: ./build.sh
+        run : | 
+           cd docker-zerotier-planet/docker-zerotier-planet
+          ./build.sh
