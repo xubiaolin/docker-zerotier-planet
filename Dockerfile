@@ -8,6 +8,7 @@ WORKDIR /app
 ADD ./patch/entrypoint.sh /app/entrypoint.sh
 ADD ./patch/http_server.js /app/http_server.js
 ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
+ADD ./zh.sh /app/zh.sh
 
 # init tool
 RUN set -x\
@@ -45,6 +46,7 @@ RUN set -x \
     && mkdir /app -p \
     &&  cd /app \
     && git clone --progress https://ghproxy.imoyuapp.win/https://github.com/key-networks/ztncui.git\
+    && bash zh.sh \
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
     && npm install -g node-gyp\
