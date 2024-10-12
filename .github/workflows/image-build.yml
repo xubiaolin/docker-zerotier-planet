@@ -39,4 +39,4 @@ jobs:
       - name: Build and push Docker image
         run : | 
            cd docker-zerotier-planet/docker-zerotier-planet
-          ./build.sh
+           ./build.sh
