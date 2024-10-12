@@ -1,11 +1,5 @@
-TG交流群：https://t.me/+JduuWfhSEPdlNDk1
-
-- QQ交流群1群（已满）：692635772
-- QQ交流群2群（已满）：785620313
-- QQ交流群3群：316239544
-
 **Feature:**
-1. 支持Linux/AMD64、支持Linux/ARM64
+1. 支持Linux/AMD64 Linux/ARM64
 2. docker 容器化部署
 3. 支持URL下载planet、Moon配置
 

@@ -117,7 +117,7 @@ sed -i "s|) Cancel|) 取消|g" ztncui/src/views/dns.pug
 sed -i "s|network controller UI|网络控制器用户界面|g" ztncui/src/views/front_door.pug
 
 sed -i "s|Logout|注销|g" ztncui/src/views/head_layout.pug
-sed -i "s|network controller UI by|网络控制器用户界面汉化作者|g" ztncui/src/views/index.pug
+sed -i "s|network controller UI by|网络控制器用户界面汉化|g" ztncui/src/views/index.pug
 sed -i "s|a(href='https://key-networks.com' target='_blank') Key Networks|a(href='https://github.com/chenxudong2020/docker-zerotier-planet' target='_blank') |g" ztncui/src/views/index.pug
 sed -i "s|This network controller has a ZeroTier address of|该控制器的ZeroTier地址为|g" ztncui/src/views/index.pug
 sed -i "s|ZeroTier version|ZeroTier版本为|g" ztncui/src/views/index.pug

@@ -13,7 +13,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          repository: ${{secrets.REPOSITORY}}
+          submodules: true
+          show-progress: true
+
+      - name: Modify
+        run : |
+        sh copy.sh 
+        
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2

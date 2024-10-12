@@ -1,9 +1,7 @@
 #!/bin/bash
 
-USER=zerotier
-REPO=ZeroTierOne
-DOCKER_IMAGE="xubiaolin/zerotier-planet"
+DOCKER_IMAGE="registry.cn-hangzhou.aliyuncs.com/dubux/zerotier-planet"
 
 
  
-docker buildx build --platform linux/amd64 -t "$DOCKER_IMAGE":latest .
+docker buildx build --platform linux/arm64,linux/amd64 -t "$DOCKER_IMAGE":latest --push .
