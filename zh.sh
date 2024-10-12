@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 sed -i "s|'Listening for HTTP requests on port '|'监听HTTP请求的端口 '|g" ztncui/src/bin/www
 sed -i "s|' on all interfaces'|' 在所有接口上'|g" ztncui/src/bin/www
@@ -118,7 +118,7 @@ sed -i "s|network controller UI|网络控制器用户界面|g" ztncui/src/views/
 
 sed -i "s|Logout|注销|g" ztncui/src/views/head_layout.pug
 sed -i "s|network controller UI by|网络控制器用户界面汉化作者|g" ztncui/src/views/index.pug
-sed -i "s|a(href='https://key-networks.com' target='_blank') Key Networks|a(href='https://github.com/niliovo/zerotier-aio-zh' target='_blank') Nili|g" ztncui/src/views/index.pug
+sed -i "s|a(href='https://key-networks.com' target='_blank') Key Networks|a(href='https://github.com/chenxudong2020/docker-zerotier-planet' target='_blank') |g" ztncui/src/views/index.pug
 sed -i "s|This network controller has a ZeroTier address of|该控制器的ZeroTier地址为|g" ztncui/src/views/index.pug
 sed -i "s|ZeroTier version|ZeroTier版本为|g" ztncui/src/views/index.pug
 sed -i "s|List all networks on this network controller|列出该网络控制器上的所有网络|g" ztncui/src/views/index.pug

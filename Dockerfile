@@ -45,8 +45,8 @@ RUN set -x\
 RUN set -x \
     && mkdir /app -p \
     &&  cd /app \
-    && git clone --progress https://ghproxy.imoyuapp.win/https://github.com/key-networks/ztncui.git\
-    && bash zh.sh \
+    && git clone https://github.com/key-networks/ztncui.git\
+    && sh zh.sh \
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
     && npm install -g node-gyp\
