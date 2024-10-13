@@ -1,19 +1,36 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches:
-      - master
   schedule:
-    - cron: '0 0 * * *' # 每天的 0 点执行
+    - cron: '0 18 * * 0,2,4,6'
+  workflow_dispatch:
+    inputs:
+      clean_cache:
+        description: 'Clear caches'
+        required: false
+        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-20.04
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          repository: ${{secrets.REPOSITORY}}
+          submodules: true
+          show-progress: true
+
+      - name: Modify
+        run : |
+          cd ..
+          pwd
+          ls -al
+          sh ./copy.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -25,4 +42,6 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
-        run: ./build.sh
+        run : | 
+           cd docker-zerotier-planet
+           ./build.sh
