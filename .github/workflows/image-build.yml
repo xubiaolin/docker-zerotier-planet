@@ -27,7 +27,6 @@ jobs:
 
       - name: Modify
         run : |
-          cd ..
           ls -al
           sh ./copy.sh
 
