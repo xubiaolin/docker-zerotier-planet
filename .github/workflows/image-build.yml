@@ -17,9 +17,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
         with:
           repository: ${{secrets.REPOSITORY}}
           submodules: true
@@ -27,7 +24,6 @@ jobs:
 
       - name: Modify
         run : |
-          cd docker-zerotier-planet
           ls -al
           sh ./copy.sh
 
