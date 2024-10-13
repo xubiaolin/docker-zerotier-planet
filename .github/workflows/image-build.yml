@@ -24,8 +24,7 @@ jobs:
 
       - name: Modify
         run : |
-          cd docker-zerotier-planet
-          sh copy.sh
+          sh ./copy.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -38,5 +37,5 @@ jobs:
 
       - name: Build and push Docker image
         run : | 
-           cd docker-zerotier-planet/docker-zerotier-planet
+           cd docker-zerotier-planet
            ./build.sh
