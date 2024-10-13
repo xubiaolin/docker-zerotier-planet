@@ -27,8 +27,7 @@ jobs:
 
       - name: Modify
         run : |
-          ls -al
-          cd ..
+          cd docker-zerotier-planet
           ls -al
           sh ./copy.sh
 
