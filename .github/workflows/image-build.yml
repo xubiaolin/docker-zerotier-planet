@@ -28,6 +28,8 @@ jobs:
       - name: Modify
         run : |
           ls -al
+          cd ..
+          ls -al
           sh ./copy.sh
 
       - name: Set up Docker Buildx
