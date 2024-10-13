@@ -24,6 +24,7 @@ jobs:
 
       - name: Modify
         run : |
+          pwd
           ls -al
           sh ./copy.sh
 
