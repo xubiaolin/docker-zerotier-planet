@@ -117,7 +117,7 @@ sed -i "s|) Cancel|) 取消|g" ztncui/src/views/dns.pug
 sed -i "s|network controller UI|网络控制器用户界面|g" ztncui/src/views/front_door.pug
 
 sed -i "s|Logout|注销|g" ztncui/src/views/head_layout.pug
-sed -i "s|network controller UI by|网络控制器用户界面汉化作者|g" ztncui/src/views/index.pug
+sed -i "s|network controller UI by|网络控制器用户界面汉化|g" ztncui/src/views/index.pug
 sed -i "s|a(href='https://key-networks.com' target='_blank') Key Networks|a(href='https://github.com/chenxudong2020/docker-zerotier-planet' target='_blank') |g" ztncui/src/views/index.pug
 sed -i "s|This network controller has a ZeroTier address of|该控制器的ZeroTier地址为|g" ztncui/src/views/index.pug
 sed -i "s|ZeroTier version|ZeroTier版本为|g" ztncui/src/views/index.pug
@@ -197,7 +197,7 @@ sed -i "s|) Networks|) 网络|g" ztncui/src/views/network_detail.pug
 
 sed -i "s|'Invalid network CIDR';|'网络 CIDR 不可用';|g" ztncui/src/views/network_easy.pug
 sed -i "s|Help|帮助|g" ztncui/src/views/network_easy.pug
-sed -i "s|Please note that this utility only supports IPv4 at this stage.|请注意，此应用程序在此阶段仅支持IPv。|g" ztncui/src/views/network_easy.pug
+sed -i "s|Please note that this utility only supports IPv4 at this stage.|请注意，此应用程序在此阶段仅支持IPv4。|g" ztncui/src/views/network_easy.pug
 sed -i "s|Use the following button to automatically generate a random network address, otherwise fill in the network address CIDR manually and the IP assignment pool will be automatically calculated for you.  You can manually alter these calculated values.|使用以下按钮可自动生成随机网络地址，否则请手动填写网络地址 CIDR，IP 分配池将为您自动计算。 您可以手动更改这些计算值。|g" ztncui/src/views/network_easy.pug
 sed -i "s|Generate network address|生成网络地址|g" ztncui/src/views/network_easy.pug
 sed -i "s|Network address in CIDR notation|以 CIDR 表示的网络地址|g" ztncui/src/views/network_easy.pug
