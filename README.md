@@ -56,9 +56,9 @@ TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 # 0: 广告
 **不想自己搭建?**
 
-可以加群联系群主按月购买现成服务,或者添加tg: [https://t.me/uxkram](https://t.me/uxkram)
+可以加QQ群后联系群主按月购买现成服务,或者添加tg: [https://t.me/uxkram](https://t.me/uxkram)
 
-年付99￥,最大300Mbit带宽,单月流量限制200G,流量超出后10￥可购买100G
+可免费试用3天，年付99￥，最大300Mbit带宽,单月流量限制200G,流量超出后10￥可购买100G
 
 线路为宁波电信
 
