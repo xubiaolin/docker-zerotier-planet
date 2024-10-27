@@ -334,7 +334,7 @@ server {
 
 server {
     listen       80;
-    server_name  {CUSTOME_DOMAIN}; //替换自己的域名
+    server_name  {CUSTOME_DOMAIN}; #替换自己的域名
     return 301 https://$server_name$request_uri;
 }
 ```
@@ -478,4 +478,5 @@ services:
 - 精钢葫芦娃
 - 唯
 - 王小新
+- 匿名
 
