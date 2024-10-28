@@ -6,7 +6,7 @@ on:
       - master
   schedule:
     - cron: '0 0 * * *' # 每天的 0 点执行
-    workflow_dispatch:
+  workflow_dispatch:
       inputs:
         clean_cache:
           description: 'Clear caches'
