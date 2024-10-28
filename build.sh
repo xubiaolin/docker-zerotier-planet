@@ -2,7 +2,7 @@
 
 USER=zerotier
 REPO=ZeroTierOne
-DOCKER_IMAGE="xubiaolin/zerotier-planet"
+DOCKER_IMAGE="chengxudong2020/zerotier-planet"
 
 
 latest_tag=$(curl -s "https://api.github.com/repos/$USER/$REPO/tags" | jq -r '.[].name' | grep -E "^[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)

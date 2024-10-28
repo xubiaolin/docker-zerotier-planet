@@ -407,7 +407,7 @@ version: '3'
 
 services:
   myztplanet:
-    image: xubiaolin/zerotier-planet:latest
+    image: chenxudong2020/zerotier-planet:latest
     container_name: ztplanet
     ports:
       - 9994:9994
