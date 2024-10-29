@@ -9,8 +9,6 @@ CONFIG_PATH="${APP_PATH}/config"
 BACKUP_PATH="/bak"
 ZTNCUI_PATH="${APP_PATH}/ztncui"
 ZTNCUI_SRC_PATH="${ZTNCUI_PATH}/src"
-# zerotier官方的planet 如不需要官方则设置 ZEROTIER_PLANET=""
-ZEROTIER_PLANET=\"103.195.103.66/9993\",\"2a02:6ea0:d405::9993/9993\",\"2001:49f0:d0db:4::9993\",\"104.194.8.134/9993\"
 
 # 启动 ZeroTier 和 ztncui
 function start() {
@@ -51,16 +49,14 @@ function init_zerotier_data() {
     ZT_PORT=$(cat ${CONFIG_PATH}/zerotier-one.port)
     echo "ZT_PORT=$ZT_PORT"
 
-    if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ] && [ -n "$ZEROTIER_PLANET" ]; then
-        stableEndpoints="[$ZEROTIER_PLANET,\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"
+    if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ]; then
+        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"
     elif [ -n "$IP_ADDR4" ]; then
-        stableEndpoints="[$ZEROTIER_PLANET,\"$IP_ADDR4/${ZT_PORT}\"]"
+        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"
     elif [ -n "$IP_ADDR6" ]; then
-        stableEndpoints="[$ZEROTIER_PLANET,\"$IP_ADDR6/${ZT_PORT}\"]"
-    elif [ -n "$ZEROTIER_PLANET" ]; then
-        stableEndpoints="[$ZEROTIER_PLANET]"
+        stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"
     else
-        echo "IP_ADDR4 and IP_ADDR6 and ZEROTIER_PLANET are both empty!"
+        echo "IP_ADDR4 and IP_ADDR6 are both empty!"
         exit 1
     fi
 
