@@ -39,44 +39,6 @@ function init_zerotier_data() {
     cd $ZEROTIER_PATH
     openssl rand -hex 16 > authtoken.secret
     ./zerotier-idtool generate identity.secret identity.public
-    ./zerotier-idtool initmoon identity.public > moon.json
-
-    IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
-    IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
-
-    echo "IP_ADDR4=$IP_ADDR4"
-    echo "IP_ADDR6=$IP_ADDR6"
-    ZT_PORT=$(cat ${CONFIG_PATH}/zerotier-one.port)
-    echo "ZT_PORT=$ZT_PORT"
-
-    if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ]; then
-        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"
-    elif [ -n "$IP_ADDR4" ]; then
-        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"
-    elif [ -n "$IP_ADDR6" ]; then
-        stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"
-    else
-        echo "IP_ADDR4 and IP_ADDR6 are both empty!"
-        exit 1
-    fi
-
-    echo "$IP_ADDR4" > ${CONFIG_PATH}/ip_addr4
-    echo "$IP_ADDR6" > ${CONFIG_PATH}/ip_addr6
-    echo "stableEndpoints=$stableEndpoints"
-
-    jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json
-    ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
-
-    ./mkworld
-    if [ $? -ne 0 ]; then
-        echo "mkmoonworld failed!"
-        exit 1
-    fi
-
-    mkdir -p ${APP_PATH}/dist/
-    mv world.bin ${APP_PATH}/dist/planet
-    cp *.moon ${APP_PATH}/dist/
-    echo "mkmoonworld success!"
 }
 
 # 检查并初始化 ZeroTier
