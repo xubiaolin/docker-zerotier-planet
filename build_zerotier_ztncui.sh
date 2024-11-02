@@ -12,7 +12,7 @@ if [ "$latest_tag" == "$latest_docker_tag" ]; then
     echo "No new version found"
     exit 0
 fi
-
+cd zerotier-ztncui
 echo "Latest tag for $USER/$REPO matching latest is: $latest_tag"
 docker buildx build --platform linux/arm64,linux/amd64 -t "$DOCKER_IMAGE":latest --push .
 docker buildx build --platform linux/arm64,linux/amd64 -t "${DOCKER_IMAGE}:${latest_tag}" --push .
