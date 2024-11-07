@@ -99,7 +99,7 @@ configure_ip() {
 
 # 安装zerotier-planet
 install() {
-    kernel_check
+    # kernel_check
 
     if docker inspect ${CONTAINER_NAME} &>/dev/null; then
         echo "容器${CONTAINER_NAME}已经存在"
