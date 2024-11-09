@@ -6,8 +6,9 @@ TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
 **Feature:**
 1. 支持Linux/AMD64、支持Linux/ARM64
-2. docker 容器化部署
-3. 支持URL下载planet、Moon配置
+2. Docker 容器化部署
+3. 支持URL下载planet、moon配置
+4. 可作为Moon或者Planet的搭建
 
 - [0: 广告](#0-广告)
 - [1：ZeroTier 介绍](#1zerotier-介绍)
@@ -58,7 +59,7 @@ TG交流群：https://t.me/+JduuWfhSEPdlNDk1
 
 可以加QQ群后联系群主按月购买现成服务,或者添加tg: [https://t.me/uxkram](https://t.me/uxkram)
 
-可免费试用3天，年付99￥，最大300Mbit带宽,单月流量限制200G,流量超出后10￥可购买100G
+可免费试用3天，年付99￥。最大300Mbit带宽,单月转发流量限制100G,p2p打通后流量不计费，流量超出后10￥可购买100G
 
 线路为宁波电信
 
@@ -95,8 +96,7 @@ Zerotier 在多设备之间建立了一个 `Peer to Peer VPN（P2PVPN）` 连接
 ##  3.1：准备条件
 - 具有公网 `ip` 的服务器（需要开放 3443/tcp 端口，9994/tcp 端口，9994/udp 端口）[这里的9994需要你根据实际情况替换]
 - 安装 `docker`、`git`，
-- Debian10+，Ubuntu20+ 等内核大于5.0的系统均支持
-- CentOS不支持，内核太低了，可能需要手动升级内核
+- 建议使用新版系统，如Debian12、Ubuntu20+,Rocky等
 
 ### 3.1.1 安装git
 ```bash
