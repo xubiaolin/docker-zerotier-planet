@@ -31,4 +31,4 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
-        run: ./ztncui-docker/build_zerotier_ztncui.sh
+        run: ./ztncui-docker/build_ztncui.sh
