@@ -5,14 +5,31 @@ ZEROTIER_PATH="$(pwd)/data/zerotier"
 CONFIG_PATH="${ZEROTIER_PATH}/config"
 DIST_PATH="${ZEROTIER_PATH}/dist"
 ZTNCUI_PATH="${ZEROTIER_PATH}/ztncui"
-DOCKER_IMAGE="docker.mirrors.imoyuapp.win/xubiaolin/zerotier-planet:latest"
-
+DOCKER_IMAGE_THRID="docker.mirrors.imoyuapp.win/xubiaolin/zerotier-planet:latest"
+DOCKER_IMAGE_SRC="xubiaolin/zerotier-planet:latest"
+DOCKER_IMAGE=$DOCKER_IMAGE_THRID
 print_message() {
     local message=$1
     local color_code=$2
     echo -e "\033[${color_code}m${message}\033[0m"
 }
+check_proxy(){
+# 检查daemon.json文件是否存在
+if [ -f /etc/docker/daemon.json ]; then
+    echo "daemon.json 文件存在."
+    # 检查daemon.json中是否有代理配置
+  	  if grep -q 'proxy' /etc/docker/daemon.json; then
+        DOCKER_IMAGE=$DOCKER_IMAGE_SRC
+        echo "代理配置已设置.将直接从官方源拉取镜像【$DOCKER_IMAGE_SRC】"
+    else
+        DOCKER_IMAGE=$DOCKER_IMAGE_THRID
+        echo "代理配置未设置,将从第三方服务器拉取镜像【$DOCKER_IMAGE_THRID】"
+    fi
+else
+    echo "daemon.json 文件不存在."
+fi
 
+}
 # 检查内核版本
 kernel_check() {
     os_name=$(grep ^ID= /etc/os-release | cut -d'=' -f2 | tr -d '"')
@@ -63,6 +80,10 @@ install_lsof() {
             apt update && apt install -y lsof
         elif command -v yum &>/dev/null; then
             yum install -y lsof
+        elif command -v opkg &>/dev/null; then
+            opkg update&&opkg install lsof
+        else
+            echo "操作平台未识别!无法安装lsof..."
         fi
     fi
 }
@@ -100,7 +121,8 @@ configure_ip() {
 # 安装zerotier-planet
 install() {
     # kernel_check
-
+    check_proxy
+    
     if docker inspect ${CONTAINER_NAME} &>/dev/null; then
         echo "容器${CONTAINER_NAME}已经存在"
         read -p "是否更新版本?(y/n) " update_version
@@ -111,6 +133,8 @@ install() {
     fi
 
     echo "开始安装，如果你已经安装了，将会删除旧的数据，10秒后开始安装..."
+
+    
     sleep 10
 
     install_lsof
@@ -332,6 +356,7 @@ menu() {
     echo "4. 查看信息"
     echo "5. 重置密码"
     echo "6. CentOS内核升级"
+    echo "7. 检查是否设置代理"
     echo "0. 退出"
     read -p "请输入数字：" num
     case "$num" in
@@ -341,8 +366,9 @@ menu() {
     4) info ;;
     5) resetpwd ;;
     6) update_centos_kernel ;;
+    7) check_proxy ;;
     0) exit ;;
-    *) echo "请输入正确数字 [0-6]" ;;
+    *) echo "请输入正确数字 [0-7]" ;;
     esac
 }
 
