@@ -343,10 +343,11 @@ PS C:\Windows\system32>
 1. 安装zerotier客户端
 2. 进入目录 `/etc/config/zero/planet`
 3. 替换目录下的 `planet` 文件
-4. 在openwrt网页后台重启zerotier服务
+4. 在openwrt网页后台先关闭zerotier服务，在开启zerotier服务
 5. 在openwrt网页后台加入网络
 6. 管理后台同意加入请求
-7. `zerotier-cli peers` 可以看到` planet` 角色
+7. 执行 `ln -s /etc/config/zero /var/lib/zerotier-one `
+8. `zerotier-cli peers` 可以看到` planet` 角色
 
 ## 4.6 iOS 客户端配置
 方案一：
