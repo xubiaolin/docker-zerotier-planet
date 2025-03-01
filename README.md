@@ -78,12 +78,12 @@
 
 测速图如下：
 
-<img src="./asserts/nb-speed-test.png" width = "800" height = "" alt="图片名称" align=center />
+<img src="./assets/nb-speed-test.png" width = "800" height = "" alt="图片名称" align=center />
 
 
 微信公众号：欢迎关注公众号获取最新动态和技术分享
 
-<img src="./asserts/wx_qrcode_pub.jpg" width = "300" height = "" alt="图片名称" align=center />
+<img src="./assets/wx_qrcode_pub.jpg" width = "300" height = "" alt="图片名称" align=center />
 
 # 1：ZeroTier 介绍
 
@@ -93,7 +93,7 @@
 
 简单来说，`ZeroTier` 就像是一个跨越互联网的"虚拟交换机"，让分布在世界各地的设备，都能像在同一个局域网内一样方便地相互访问。
 
-![zerotier](asserts/zerotier-network.png)
+![zerotier](assets/zerotier-network.png)
 
 **ZeroTier 网络中的关键概念**
 
@@ -217,7 +217,7 @@ cd docker-zerotier-planet
 
 当您看到类似如下字样时，表示安装成功
 
-![install-finish](./asserts/install_finish.png)
+![install-finish](./assets/install_finish.png)
 
 
 ## 3.4 下载 `planet` 文件
@@ -233,7 +233,7 @@ cd docker-zerotier-planet
 ## 3.5 新建网络
 访问 `http://ip:3443` 进入controller页面
 
-![ui](asserts/ztncui.png)
+![ui](assets/ztncui.png)
 
 使用默认账号为:`admin`
 
@@ -246,18 +246,18 @@ cd docker-zerotier-planet
 
 创建成功后系统会自动生成一个网络ID，这个ID在后续客户端配置时会用到，请记录下来。
 
-![ui](asserts/ztncui_create_net.png)
+![ui](assets/ztncui_create_net.png)
 
 得到网络 `id`
 
-![ui](asserts/ztncui_net_id.png)
+![ui](assets/ztncui_net_id.png)
 
 ### 3.5.2 分配网络IP:
 选中easy setup
-![assign_id](./asserts/easy_setup.png)
+![assign_id](./assets/easy_setup.png)
 
 生成ip范围
-![ip_addr](./asserts/network_addr.png)
+![ip_addr](./assets/network_addr.png)
 
 # 4.客户端配置
 ZeroTier 支持多种主流操作系统的客户端，包括:
@@ -273,11 +273,11 @@ ZeroTier 支持多种主流操作系统的客户端，包括:
 
 Win+S 搜索 `服务`
 
-![ui](asserts/service.png)
+![ui](assets/service.png)
 
 找到ZeroTier One，并且重启服务
 
-![ui](asserts/restart_service.png)
+![ui](assets/restart_service.png)
 
 
 ### 4.2 加入网络
@@ -292,11 +292,11 @@ PS C:\Windows\system32>
 
 登录管理后台可以看到有个个新的客户端，勾选`Authorized`就行
 
-![ui](asserts/join_net.png)
+![ui](assets/join_net.png)
 
 IP assignment 里面会出现zerotier的内网ip
 
-![ip](./asserts/allow_devices.png)
+![ip](./assets/allow_devices.png)
 
 执行如下命令：
 ```
@@ -340,10 +340,11 @@ PS C:\Windows\system32>
 1. 安装zerotier客户端
 2. 进入目录 `/etc/config/zero/planet`
 3. 替换目录下的 `planet` 文件
-4. 在openwrt网页后台重启zerotier服务
+4. 在openwrt网页后台先关闭zerotier服务，在开启zerotier服务
 5. 在openwrt网页后台加入网络
 6. 管理后台同意加入请求
-7. `zerotier-cli peers` 可以看到` planet` 角色
+7. 执行 `ln -s /etc/config/zero /var/lib/zerotier-one `
+8. `zerotier-cli peers` 可以看到` planet` 角色
 
 ## 4.6 iOS 客户端配置
 方案一：
@@ -504,7 +505,7 @@ services:
 
 如果觉得本项目对您有帮助，欢迎通过扫描下方赞赏码捐助项目 :)
 
-<img src="asserts/donate.png" alt="donate" width="400" height="400" />
+<img src="assets/donate.png" alt="donate" width="400" height="400" />
 
 # 鸣谢
 感谢以下网友投喂，你们的支持和鼓励是我不懈更新的动力
