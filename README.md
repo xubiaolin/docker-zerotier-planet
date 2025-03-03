@@ -157,10 +157,7 @@ curl -fsSL https://get.docker.com |bash
 ```
 
 如果网络问题，导致无法安装，可以使用国内镜像安装：
-```
-curl -fsSL get.docker.com -o get-docker.sh
-sudo sh get-docker.sh --mirror Aliyun
-```
+请参考：[安装Docker](https://help.aliyun.com/zh/ecs/use-cases/install-and-use-docker#33f11a5f1800n)
 
 ### 3.1.3 启动docker
 ```bash
