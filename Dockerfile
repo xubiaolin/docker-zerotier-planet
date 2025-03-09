@@ -24,7 +24,7 @@ RUN set -x\
     && git checkout ${TAG}\
     && echo "切换到tag:${TAG}"\
     && make ZT_SYMLINK=1 \
-    && make\
+    && make -j\
     && make install\
     && echo "make success!"\
     ; zerotier-one -d  \
