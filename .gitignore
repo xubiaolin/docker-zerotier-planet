@@ -1,2 +1,4 @@
 .idea
 /data
+.DS_Store
+.vscode
