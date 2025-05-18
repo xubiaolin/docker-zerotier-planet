@@ -64,6 +64,7 @@
 - [鸣谢](#鸣谢)
 
 # 0: 广告
+## 托管方案一：自运营容器服务
 **寻找便捷的解决方案？**
 
 我们提供专业的托管服务：
@@ -84,7 +85,11 @@
 <img src="./assets/nb-speed-test.png" width = "800" height = "" alt="图片名称" align=center />
 
 
-微信公众号：欢迎关注公众号获取最新动态和技术分享
+## 0.2 托管方案二：雨云容器服务
+[![通过雨云一键部署](https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg)](https://app.rainyun.com/apps/rca/store/6215?ref=220429)
+
+
+### 0.3 微信公众号广告：欢迎关注公众号获取最新动态和技术分享
 
 <img src="./assets/wx_qrcode_pub.jpg" width = "300" height = "" alt="图片名称" align=center />
 
