@@ -8,6 +8,7 @@ WORKDIR /app
 ADD ./patch/entrypoint.sh /app/entrypoint.sh
 ADD ./patch/http_server.js /app/http_server.js
 ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
+ADD ./patch/update_moon_planet.sh /app/update_moon_planet.sh
 
 # init tool
 RUN set -x\
@@ -54,6 +55,7 @@ FROM alpine:3.14
 
 WORKDIR /app
 
+ENV DOMAN=''
 ENV IP_ADDR4=''
 ENV IP_ADDR6=''
 
@@ -61,7 +63,7 @@ ENV ZT_PORT=9994
 ENV API_PORT=3443
 ENV FILE_SERVER_PORT=3000
 
-ENV GH_MIRROR="https://mirror.ghproxy.com/"
+ENV GH_MIRROR="https://ghfast.top/"
 ENV FILE_KEY=''
 ENV TZ=Asia/Shanghai
 
@@ -71,6 +73,7 @@ COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /app/http_server.js /app/http_server.js
+COPY --from=builder /app/update_moon_planet.sh /app/update_moon_planet.sh
 
 RUN set -x \
     && apk update \

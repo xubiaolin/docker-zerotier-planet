@@ -15,6 +15,11 @@ function start() {
     echo "Start ztncui and zerotier"
     cd $ZEROTIER_PATH && ./zerotier-one -p$(cat ${CONFIG_PATH}/zerotier-one.port) -d || exit 1
     nohup node ${APP_PATH}/http_server.js &> ${APP_PATH}/server.log & 
+    # 新增变量和语句,填写域名则根据域名IP自动更新planet和moon
+    if [ -n "${DOMAIN}" ]; then
+        echo "启动域名解析更新功能"
+        nohup sh ${APP_PATH}/update_moon_planet.sh >/dev/null 2>log & 
+    fi
     cd $ZTNCUI_SRC_PATH && npm start || exit 1
 }
 
@@ -28,6 +33,19 @@ function check_file_server() {
         FILE_SERVER_PORT=$(cat ${CONFIG_PATH}/file_server.port)
     fi
     echo "${FILE_SERVER_PORT}"
+
+    # 比对文件服务器密钥
+    key_file="${CONFIG_PATH}/file_server.key"
+
+    if [ ! -f "$key_file" ]; then
+        [ -z "$SECRET_KEY" ] && SECRET_KEY=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
+        echo "$SECRET_KEY" > "$key_file"
+    else
+        if [ -n "$SECRET_KEY" ] && [ "$SECRET_KEY" != "$(cat "$key_file" 2>/dev/null)" ]; then
+            echo "$SECRET_KEY" > "$key_file"
+        fi
+    fi
+    echo "文件服务器密钥: $SECRET_KEY"
 }
 
 # 初始化 ZeroTier 数据
@@ -40,9 +58,25 @@ function init_zerotier_data() {
     openssl rand -hex 16 > authtoken.secret
     ./zerotier-idtool generate identity.secret identity.public
     ./zerotier-idtool initmoon identity.public > moon.json
-
-    IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
-    IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
+    mkdir -p ${APP_PATH}/dist/
+    if  [[ -n "$DOMAIN" ]]; then
+        if command -v dig >/dev/null 2>&1; then
+            IP_ADDR4=$(dig +short A "$DOMAIN" | head -n 1)
+            IP_ADDR6=$(dig +short AAAA "$DOMAIN" | head -n 1)
+        else
+            # fallback 使用 nslookup
+            IP_ADDR4=$(nslookup "$DOMAIN" | awk '/^Address: / && $2 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {print $2}' | head -n 1)
+            IP_ADDR6=$(nslookup "$DOMAIN" | awk '/^Address: / && $2 ~ /^[0-9a-fA-F:]+$/ {print $2}' | head -n 1)
+        fi
+        if [ -z "$IP_ADDR4" ] && [ -z "$IP_ADDR6" ]; then
+            print_message "域名解析失败,无法获取IP地址"
+            exit 1
+        fi
+        echo "${IP_ADDR4},${IP_ADDR6}" > ${APP_PATH}/dist/ips
+    else
+        IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
+        IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
+    fi
 
     echo "IP_ADDR4=$IP_ADDR4"
     echo "IP_ADDR6=$IP_ADDR6"
@@ -56,10 +90,10 @@ function init_zerotier_data() {
     elif [ -n "$IP_ADDR6" ]; then
         stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"
     else
-        echo "IP_ADDR4 and IP_ADDR6 are both empty!"
+        echo "IPV4 或 IPV6 不能为空"
         exit 1
     fi
-
+    echo "$DOMAIN" > ${CONFIG_PATH}/domain
     echo "$IP_ADDR4" > ${CONFIG_PATH}/ip_addr4
     echo "$IP_ADDR6" > ${CONFIG_PATH}/ip_addr6
     echo "stableEndpoints=$stableEndpoints"
@@ -72,8 +106,6 @@ function init_zerotier_data() {
         echo "mkmoonworld failed!"
         exit 1
     fi
-
-    mkdir -p ${APP_PATH}/dist/
     mv world.bin ${APP_PATH}/dist/planet
     cp *.moon ${APP_PATH}/dist/
     echo "mkmoonworld success!"
