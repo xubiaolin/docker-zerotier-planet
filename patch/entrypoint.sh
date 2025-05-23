@@ -58,7 +58,6 @@ function init_zerotier_data() {
     openssl rand -hex 16 > authtoken.secret
     ./zerotier-idtool generate identity.secret identity.public
     ./zerotier-idtool initmoon identity.public > moon.json
-    mkdir -p ${APP_PATH}/dist/
     if  [[ -n "$DOMAIN" ]]; then
         if command -v dig >/dev/null 2>&1; then
             IP_ADDR4=$(dig +short A "$DOMAIN" | head -n 1)
@@ -68,16 +67,14 @@ function init_zerotier_data() {
             IP_ADDR4=$(nslookup "$DOMAIN" | awk '/^Address: / && $2 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {print $2}' | head -n 1)
             IP_ADDR6=$(nslookup "$DOMAIN" | awk '/^Address: / && $2 ~ /^[0-9a-fA-F:]+$/ {print $2}' | head -n 1)
         fi
-        if [ -z "$IP_ADDR4" ] && [ -z "$IP_ADDR6" ]; then
-            print_message "域名解析失败,无法获取IP地址"
-            exit 1
-        fi
-        echo "${IP_ADDR4},${IP_ADDR6}" > ${APP_PATH}/dist/ips
     else
         IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
         IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
     fi
-
+    if [ -z "$IP_ADDR4" ] && [ -z "$IP_ADDR6" ]; then
+        print_message "无法正确获取IP地址."
+        exit 1
+    fi
     echo "IP_ADDR4=$IP_ADDR4"
     echo "IP_ADDR6=$IP_ADDR6"
     ZT_PORT=$(cat ${CONFIG_PATH}/zerotier-one.port)
@@ -89,13 +86,11 @@ function init_zerotier_data() {
         stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"
     elif [ -n "$IP_ADDR6" ]; then
         stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"
-    else
-        echo "IPV4 或 IPV6 不能为空"
-        exit 1
     fi
     echo "$DOMAIN" > ${CONFIG_PATH}/domain
     echo "$IP_ADDR4" > ${CONFIG_PATH}/ip_addr4
     echo "$IP_ADDR6" > ${CONFIG_PATH}/ip_addr6
+
     echo "stableEndpoints=$stableEndpoints"
 
     jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json
@@ -106,8 +101,10 @@ function init_zerotier_data() {
         echo "mkmoonworld failed!"
         exit 1
     fi
+    mkdir -p ${APP_PATH}/dist/
     mv world.bin ${APP_PATH}/dist/planet
     cp *.moon ${APP_PATH}/dist/
+    echo "$IP_ADDR4,$IP_ADDR6" > ${APP_PATH}/dist/ips
     echo "mkmoonworld success!"
 }
 
