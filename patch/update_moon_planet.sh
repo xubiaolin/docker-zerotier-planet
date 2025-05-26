@@ -5,9 +5,13 @@ APP_PATH="/app"
 FILE_PATH=${APP_PATH}/dist
 CONFIG_PATH="${APP_PATH}/config"
 LOG_FILE_PATH="${APP_PATH}/update_moon_planet.log"
-CHECK_INTERVAL=${CHECK_INTERVAL: -60}
-LOG_MAX_LINES=${LOG_MAX_LINES: -3000}
+CHECK_INTERVAL=${CHECK_INTERVAL:-60}
+LOG_MAX_LINES=${LOG_MAX_LINES:-3000}
 ZEROTIER_PATH="/var/lib/zerotier-one"
+
+if [ "$LOG_MAX_LINES" -lt 300 ]; then
+    LOG_MAX_LINES=300
+fi
 
 print_message(){
     message="$1"
