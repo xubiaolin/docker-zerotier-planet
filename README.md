@@ -205,7 +205,7 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 
 **加速地址：**
 ```bash
-git clone https://ghproxy.imoyuapp.win/https://github.com/xubiaolin/docker-zerotier-planet.git
+git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
 ### 3.3 执行安装脚本
