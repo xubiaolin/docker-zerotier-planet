@@ -23,7 +23,7 @@ RUN set -x\
     && cd ZeroTierOne\
     && git checkout ${TAG}\
     && echo "切换到tag:${TAG}"\
-    && make ZT_SYMLINK=1 \
+    && make ZT_SYMLINK=1 -j \
     && make -j\
     && make install\
     && echo "make success!"\
@@ -44,7 +44,7 @@ RUN set -x\
 RUN set -x \
     && mkdir /app -p \
     &&  cd /app \
-    && git clone --progress https://ghproxy.imoyuapp.win/https://github.com/key-networks/ztncui.git\
+    && git clone --progress https://github.com/key-networks/ztncui.git\
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
     && npm install -g node-gyp\
@@ -79,5 +79,9 @@ RUN set -x \
 
 
 VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
+
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+  CMD sh -c "nc -z localhost ${ZT_PORT:-9994}" || exit 1
+
 
 CMD ["/bin/sh","/app/entrypoint.sh"]

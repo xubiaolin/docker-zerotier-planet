@@ -1,0 +1,21 @@
+services:
+  myztplanet:
+    image: xubiaolin/zerotier-planet:latest
+    container_name: ztplanet
+    ports:
+      - 9994:9994
+      - 9994:9994/udp
+      - 3443:3443
+      - 3000:3000
+    environment:
+      - IP_ADDR4=192.168.100.101
+      - IP_ADDR6=
+      - ZT_PORT=9994
+      - API_PORT=3443
+      - FILE_SERVER_PORT=3000
+    volumes:
+      - ./data/zerotier/dist:/app/dist
+      - ./data/zerotier/ztncui:/app/ztncui
+      - ./data/zerotier/one:/var/lib/zerotier-one
+      - ./data/zerotier/config:/app/config
+    restart: unless-stopped
