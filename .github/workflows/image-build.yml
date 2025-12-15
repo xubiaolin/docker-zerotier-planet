@@ -40,4 +40,4 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:${{ steps.get_tag.outputs.latest_tag }}
           build-args: |
-            DERP_VERSION=${{ steps.get_tag.outputs.latest_tag }} 
+            TAG=${{ steps.get_tag.outputs.latest_tag }} 
