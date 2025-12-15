@@ -188,7 +188,7 @@ sudo tee /etc/docker/daemon.json <<EOF
 {
     "registry-mirrors": [
         "https://docker.mirrors.aster.edu.pl",
-        "https://docker.mirrors.imoyuapp.win"
+        "http://hub.imoyuapp.win"
     ]
 }
 EOF
@@ -206,7 +206,7 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 
 **加速地址：**
 ```bash
-git clone https://github.com/xubiaolin/docker-zerotier-planet.git
+git clone https://ghproxy.imoyuapp.win/github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
 ### 3.3 执行安装脚本
