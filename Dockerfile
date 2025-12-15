@@ -12,7 +12,7 @@ ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
 # init tool
 RUN set -x\
     && apk update\
-    && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake \
+    && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake go \
     && echo "env prepare success!"
 
 # make zerotier-one
