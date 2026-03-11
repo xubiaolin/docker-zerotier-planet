@@ -1,3 +1,5 @@
+🌐 Languages: [English](README.md) | [中文](README.zh.md)
+
 <a href="https://edgeone.ai/?from=github">
   <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="Logo" /> 本项目的 CDN 加速和安全保护由腾讯 EdgeOne 赞助
 </a>
