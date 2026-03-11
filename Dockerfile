@@ -1,7 +1,7 @@
 FROM alpine:3.14 as builder
 
 ENV TZ=Asia/Shanghai
-ARG TAG=main
+ARG TAG=actions
 ENV TAG=${TAG}
 
 WORKDIR /app
