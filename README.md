@@ -186,12 +186,13 @@ service docker start
 #### 3.1.4 配置 Docker 加速镜像（可选）
 
 ```bash
-sudo tee /etc/docker/daemon.json <<EOF
+sudo mkdir -p /etc/docker
+
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
-    "registry-mirrors": [
-        "https://docker.mirrors.aster.edu.pl",
-        "http://hub.imoyuapp.win"
-    ]
+  "registry-mirrors": [
+    "https://hub.bwg.imoyuapp.win"
+  ]
 }
 EOF
 
