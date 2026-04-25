@@ -2,22 +2,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
-const crypto = require('crypto');
 const port = process.env.FILE_SERVER_PORT;
-
-const SECRET_KEY = process.env.SECRET_KEY || crypto.randomBytes(8).toString('hex');
-const APP_PATH='/app'
 const DIST_PATH = '/app/dist'
-
-// write to file
 const secretKeyPath = '/app/config/file_server.key';
-fs.writeFile(secretKeyPath, SECRET_KEY, (err) => {
-    if (err) {
-        console.error('Error writing SECRET_KEY to file:', err);
-    } else {
-        console.log(`SECRET_KEY written to ${secretKeyPath}`);
-    }
-});
+
+// 读取secretKeyPath文件中密钥
+SECRET_KEY = fs.readFileSync(secretKeyPath, 'utf8').trim();
 
 const server = http.createServer((req, res) => {
     const parsedUrl = url.parse(req.url, true);
