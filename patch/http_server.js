@@ -1,71 +1,210 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 const crypto = require('crypto');
-const port = process.env.FILE_SERVER_PORT;
 
-const SECRET_KEY = process.env.SECRET_KEY || crypto.randomBytes(8).toString('hex');
-const APP_PATH='/app'
-const DIST_PATH = '/app/dist'
+const DEFAULT_PORT = process.env.FILE_SERVER_PORT || 3000;
+const DEFAULT_HOST = process.env.FILE_SERVER_HOST || undefined;
+const DEFAULT_DIST_PATH = process.env.DIST_PATH || '/app/dist';
+const DEFAULT_SECRET_KEY_PATH = process.env.FILE_KEY_PATH || '/app/config/file_server.key';
+const KEY_BYTES = 32;
 
-// write to file
-const secretKeyPath = '/app/config/file_server.key';
-fs.writeFile(secretKeyPath, SECRET_KEY, (err) => {
-    if (err) {
-        console.error('Error writing SECRET_KEY to file:', err);
-    } else {
-        console.log(`SECRET_KEY written to ${secretKeyPath}`);
+function getConfiguredSecret(env = process.env) {
+    return env.FILE_KEY || env.SECRET_KEY || null;
+}
+
+function generateSecret() {
+    return crypto.randomBytes(KEY_BYTES).toString('hex');
+}
+
+function writeSecretKeyFile(secretKey, secretKeyPath) {
+    fs.mkdirSync(path.dirname(secretKeyPath), { recursive: true });
+    fs.writeFileSync(secretKeyPath, secretKey, { mode: 0o600 });
+    fs.chmodSync(secretKeyPath, 0o600);
+}
+
+function normalizeBoolean(value) {
+    return String(value || '').toLowerCase() === 'true';
+}
+
+function timingSafeEqualString(actual, expected) {
+    if (typeof actual !== 'string' || typeof expected !== 'string') {
+        return false;
     }
-});
 
-const server = http.createServer((req, res) => {
-    const parsedUrl = url.parse(req.url, true);
+    const actualBuffer = Buffer.from(actual);
+    const expectedBuffer = Buffer.from(expected);
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
 
-    // check key
-    const key = parsedUrl.query.key;
-    if (!key || key !== SECRET_KEY) {
-        res.writeHead(401, { 'Content-Type': 'text/plain' });
-        return res.end('Unauthorized');
+function extractBearerToken(headerValue) {
+    if (!headerValue) {
+        return null;
     }
 
-    let filePath = path.join(DIST_PATH, parsedUrl.pathname);
-    let extname = String(path.extname(filePath)).toLowerCase();
-    let mimeTypes = {
-        '.html': 'text/html',
-        '.js': 'text/javascript',
-        '.css': 'text/css',
-        '.json': 'application/json',
-        '.png': 'image/png',
-        '.jpg': 'image/jpg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.wav': 'audio/wav',
-        '.mp4': 'video/mp4',
-        '.woff': 'application/font-woff',
-        '.ttf': 'application/font-ttf',
-        '.eot': 'application/vnd.ms-fontobject',
-        '.otf': 'application/font-otf',
-        '.wasm': 'application/wasm'
-    };
-    let contentType = mimeTypes[extname] || 'application/octet-stream';
+    const match = /^Bearer\s+(.+)$/i.exec(headerValue.trim());
+    return match ? match[1] : null;
+}
 
-    fs.readFile(filePath, (err, content) => {
-        if (err) {
-            if (err.code == 'ENOENT') {
-                res.writeHead(404, { 'Content-Type': 'text/html' });
-                res.end("404 - File Not Found");
-            } else {
-                res.writeHead(500);
-                res.end(`Server Error: ${err.code}`);
-            }
-        } else {
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content, 'utf-8');
-        }
+function getRequestKey(req, requestUrl, allowQueryKey) {
+    const authorizationKey = extractBearerToken(req.headers.authorization);
+    if (authorizationKey) {
+        return authorizationKey;
+    }
+
+    const headerKey = req.headers['x-file-server-key'];
+    if (typeof headerKey === 'string' && headerKey) {
+        return headerKey;
+    }
+
+    if (allowQueryKey) {
+        return requestUrl.searchParams.get('key');
+    }
+
+    return null;
+}
+
+function isAllowedArtifact(fileName) {
+    return fileName === 'planet' || /^[A-Za-z0-9][A-Za-z0-9._-]*\.moon$/.test(fileName);
+}
+
+function resolveArtifactPath(requestPathname, distPath) {
+    let decodedPathname;
+    try {
+        decodedPathname = decodeURIComponent(requestPathname);
+    } catch (error) {
+        return { ok: false, statusCode: 403 };
+    }
+
+    if (decodedPathname.includes('\0') || decodedPathname.includes('\\')) {
+        return { ok: false, statusCode: 403 };
+    }
+
+    const withoutLeadingSlash = decodedPathname.replace(/^\/+/, '');
+    const normalized = path.posix.normalize(withoutLeadingSlash);
+
+    if (
+        !normalized ||
+        normalized === '.' ||
+        normalized.startsWith('../') ||
+        normalized === '..' ||
+        path.posix.isAbsolute(normalized) ||
+        normalized.includes('/')
+    ) {
+        return { ok: false, statusCode: 403 };
+    }
+
+    if (!isAllowedArtifact(normalized)) {
+        return { ok: false, statusCode: 403 };
+    }
+
+    const resolvedDistPath = path.resolve(distPath);
+    const filePath = path.resolve(resolvedDistPath, normalized);
+    if (filePath !== resolvedDistPath && !filePath.startsWith(resolvedDistPath + path.sep)) {
+        return { ok: false, statusCode: 403 };
+    }
+
+    return { ok: true, filePath };
+}
+
+function sendText(res, statusCode, body, extraHeaders = {}) {
+    res.writeHead(statusCode, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        ...extraHeaders,
     });
-});
+    res.end(body);
+}
 
-server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}/`);
-});
+function createFileServer(options = {}) {
+    const env = options.env || process.env;
+    const distPath = options.distPath || env.DIST_PATH || DEFAULT_DIST_PATH;
+    const secretKeyPath = options.secretKeyPath || env.FILE_KEY_PATH || DEFAULT_SECRET_KEY_PATH;
+    const secretKey = options.secretKey || getConfiguredSecret(env) || generateSecret();
+    const allowQueryKey = options.allowQueryKey !== undefined ? options.allowQueryKey : normalizeBoolean(env.ALLOW_QUERY_FILE_KEY);
+
+    writeSecretKeyFile(secretKey, secretKeyPath);
+
+    if (allowQueryKey && options.warn !== false) {
+        const warn = options.warn || console.warn;
+        warn('WARNING: ALLOW_QUERY_FILE_KEY=true enables deprecated insecure query-string file-server auth. Use Authorization: Bearer instead.');
+    }
+
+    const server = http.createServer((req, res) => {
+        let requestUrl;
+        try {
+            requestUrl = new URL(req.url, 'http://file-server.local');
+        } catch (error) {
+            return sendText(res, 400, 'Bad Request');
+        }
+
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            return sendText(res, 405, 'Method Not Allowed', { Allow: 'GET, HEAD' });
+        }
+
+        const requestKey = getRequestKey(req, requestUrl, allowQueryKey);
+        if (!timingSafeEqualString(requestKey, secretKey)) {
+            return sendText(res, 401, 'Unauthorized');
+        }
+
+        const rawPathname = String(req.url || '').split(/[?#]/, 1)[0];
+        const resolved = resolveArtifactPath(rawPathname, distPath);
+        if (!resolved.ok) {
+            return sendText(res, resolved.statusCode, 'Forbidden');
+        }
+
+        fs.readFile(resolved.filePath, (err, content) => {
+            if (err) {
+                if (err.code === 'ENOENT') {
+                    return sendText(res, 404, 'Not Found');
+                }
+
+                return sendText(res, 500, 'Server Error');
+            }
+
+            res.writeHead(200, {
+                'Content-Type': 'application/octet-stream',
+                'Cache-Control': 'no-store',
+                'X-Content-Type-Options': 'nosniff',
+            });
+
+            if (req.method === 'HEAD') {
+                return res.end();
+            }
+
+            return res.end(content);
+        });
+    });
+
+    return { server, secretKey, secretKeyPath, distPath, allowQueryKey };
+}
+
+function startServer(options = {}) {
+    const port = options.port || process.env.FILE_SERVER_PORT || DEFAULT_PORT;
+    const host = options.host !== undefined ? options.host : DEFAULT_HOST;
+    const fileServer = createFileServer(options);
+
+    fileServer.server.listen(port, host, () => {
+        const boundHost = host || '0.0.0.0';
+        console.log(`File server listening on ${boundHost}:${port} with header-based auth`);
+    });
+
+    return fileServer;
+}
+
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = {
+    KEY_BYTES,
+    createFileServer,
+    extractBearerToken,
+    generateSecret,
+    isAllowedArtifact,
+    resolveArtifactPath,
+    startServer,
+    timingSafeEqualString,
+    writeSecretKeyFile,
+};
