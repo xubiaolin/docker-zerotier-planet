@@ -36,6 +36,37 @@ require_match() {
   fi
 }
 
+require_any_match() {
+  local name="$1"
+  local file="$2"
+  shift 2
+  local pattern
+  for pattern in "$@"; do
+    if grep -Eq -- "$pattern" "$file" 2>/dev/null; then
+      report_pass "$name"
+      return 0
+    fi
+  done
+  report_fail "$name (none of the accepted patterns were found in $file)"
+}
+
+reject_legacy_public_default_bindings() {
+  local direct_public='-p[[:space:]]+\$\{?(API_PORT|FILE_PORT)\}?:\$\{?(API_PORT|FILE_PORT)\}?'
+  local explicit_opt_in='PUBLIC_HTTP|ZTNCUI_HTTP_PUBLIC|FILE_SERVER_HTTP_PUBLIC|HTTP_PUBLIC'
+  local output
+  if output=$(grep -nE -- "$direct_public" deploy.sh 2>/dev/null); then
+    if grep -Eq -- "$explicit_opt_in" deploy.sh; then
+      report_pass 'deploy gates public management/file-server bindings behind an explicit opt-in flag'
+    else
+      report_fail 'deploy does not publish management/file-server ports on every host interface by default (unexpected direct public bindings):'
+      printf '%s
+' "$output" >&2
+    fi
+  else
+    report_pass 'deploy does not publish management/file-server ports on every host interface by default'
+  fi
+}
+
 reject_match() {
   local name="$1"
   local pattern="$2"
@@ -100,20 +131,19 @@ reject_match \
   '(KEY:[[:space:]]*\$\{?KEY\}?|echo[[:space:]].*(KEY|key).*\$\{?KEY\}?|print_message[[:space:]].*\$\{?KEY\}?)' \
   deploy.sh
 
-reject_match \
-  'deploy does not publish management/file-server ports on every host interface by default' \
-  '(-p[[:space:]]+\$\{?(API_PORT|FILE_PORT)\}?:\$\{?(API_PORT|FILE_PORT)\}?|-p[[:space:]]+0\.0\.0\.0:\$\{?(API_PORT|FILE_PORT)\}?:)' \
-  deploy.sh
+reject_legacy_public_default_bindings
 
-require_match \
+require_any_match \
   'deploy binds management port to localhost by default' \
+  deploy.sh \
   '127\.0\.0\.1:\$\{?API_PORT\}?:\$\{?API_PORT\}?' \
-  deploy.sh
+  '(BIND|HOST)[A-Z_]*=.*127\.0\.0\.1.*-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?API_PORT\}?:\$\{?API_PORT\}?'
 
-require_match \
+require_any_match \
   'deploy binds file-server port to localhost by default' \
+  deploy.sh \
   '127\.0\.0\.1:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?' \
-  deploy.sh
+  '(BIND|HOST)[A-Z_]*=.*127\.0\.0\.1.*-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?'
 
 require_match \
   'Dockerfile declares a pinned ztncui ref build arg' \
