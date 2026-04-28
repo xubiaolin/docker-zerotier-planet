@@ -50,7 +50,8 @@
   - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
   - [4.5 OpenWRT 客户端配置](#45-openwrt-客户端配置)
   - [4.6 iOS 客户端配置](#46-ios-客户端配置)
-- [5. 管理面板 SSL 配置](#5-管理面板-ssl-配置)
+- [5. 管理面板 TLS/反向代理配置](#5-管理面板-tls反向代理配置)
+- [安全与迁移说明](./SECURITY.md)
 - [6. 卸载](#6-卸载)
 - [7. 常见问题](#7-常见问题)
 - [8. 开发计划](#8-开发计划)
@@ -245,24 +246,45 @@ cd docker-zerotier-planet
 
 脚本运行完成后，会在 `./data/zerotier/dist` 目录下生成 `planet` 和 `moon` 配置文件。
 
-您可以通过以下两种方式获取这些文件：
+默认情况下，文件下载服务只建议在本机或经过 TLS 反向代理后访问，并且使用请求头传递访问密钥，不再把密钥放到 URL 中。文件服务密钥保存在 `./data/zerotier/config/file_server.key`。
 
-1. **通过安装完成后提供的 URL 直接下载**
-2. **使用 scp 或其他文件传输工具从服务器下载**
+推荐下载方式：
 
+1. **在服务器本机下载（推荐）**
+   ```bash
+   FILE_KEY=$(cat ./data/zerotier/config/file_server.key)
+   curl -H "Authorization: Bearer ${FILE_KEY}" http://127.0.0.1:3000/planet -o planet
+   # moon 文件示例：curl -H "Authorization: Bearer ${FILE_KEY}" http://127.0.0.1:3000/<moon-id>.moon -o <moon-id>.moon
+   ```
+2. **使用 `scp`、SFTP 或其他文件传输工具从服务器下载**
+3. **通过 HTTPS 反向代理访问**：请先参考 [第 5 节](#5-管理面板-tls反向代理配置) 配置 TLS，再使用同样的 `Authorization: Bearer` 请求头下载。
+
+> **安全提示**：不要分享包含密钥的命令输出，也不要使用带密钥的查询字符串下载链接。`ALLOW_QUERY_FILE_KEY=true` 仅用于短期兼容旧流程，默认关闭，并计划移除。
 > **重要**：请妥善保存这些文件，后续配置客户端时会用到。
 
 ### 3.5 新建网络
 
 #### 3.5.1 访问管理界面
 
-访问 `http://ip:3443` 进入 controller 页面
+默认部署会把管理界面绑定到宿主机 `127.0.0.1:3443`，避免在公网明文暴露。请在服务器本机访问，或使用 SSH 隧道/TLS 反向代理访问：
+
+```bash
+ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
+# 然后在本机浏览器打开 http://127.0.0.1:3443
+```
 
 ![ui](assets/ztncui.png)
 
-**默认登录信息：**
-- 用户名：`admin`
-- 密码：`password`
+**登录信息：**
+- 用户名默认是 `admin`（可通过 `ZTNCUI_USER` 修改）
+- 密码不再使用公开默认值；如未通过 `ZTNCUI_PASSWORD`/`ZTNCUI_PASSWD` 指定，安装脚本会生成随机密码
+- 生成的初始密码保存在 `./data/zerotier/config/ztncui.initial-password`，建议首次登录后立即修改并妥善保存
+
+```bash
+cat ./data/zerotier/config/ztncui.initial-password
+```
+
+> **安全提示**：不要再使用公开默认管理凭据。如果确实需要把管理界面暴露到公网，请优先使用 [TLS 反向代理](#5-管理面板-tls反向代理配置)；公网明文 HTTP 仅适合临时实验环境，并需要显式开启相应公开访问开关。
 
 #### 3.5.2 创建网络
 
@@ -395,32 +417,33 @@ PS C:\Windows\system32>
 
 ---
 
-## 5. 管理面板 SSL 配置
+## 5. 管理面板 TLS/反向代理配置
 
-管理面板的 SSL 支持需要自行配置，参考 Nginx 配置如下：
+默认部署会把管理界面和文件下载服务绑定在宿主机本地地址（例如 `127.0.0.1:3443`、`127.0.0.1:3000`）。如果需要公网访问，请使用带有效证书的 HTTPS 反向代理，不建议直接暴露明文 HTTP。
+
+下面示例使用两个域名分别代理管理界面和文件下载服务；也可以按自己的网关策略调整：
 
 ```nginx
-upstream zerotier {
+upstream zerotier_ui {
   server 127.0.0.1:3443;
 }
 
+upstream zerotier_files {
+  server 127.0.0.1:3000;
+}
+
 server {
-  listen 443 ssl;
-  server_name {CUSTOM_DOMAIN}; # 替换自己的域名
+  listen 443 ssl http2;
+  server_name {CUSTOM_DOMAIN}; # 管理界面域名
 
-  # SSL 证书地址
-  ssl_certificate    pem 或 crt 文件的路径;
+  ssl_certificate     pem 或 crt 文件的路径;
   ssl_certificate_key key 文件的路径;
-
-  # SSL 验证相关配置
-  ssl_session_timeout  5m;    # 缓存有效期
-  ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;    # 加密算法
-  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;    # 安全链接可选的加密协议
-  ssl_prefer_server_ciphers on;   # 使用服务器端的首选算法
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
 
   location / {
-    proxy_pass http://zerotier;
-    proxy_set_header HOST $host;
+    proxy_pass http://zerotier_ui;
+    proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -428,11 +451,38 @@ server {
 }
 
 server {
-    listen       80;
-    server_name  {CUSTOM_DOMAIN}; # 替换自己的域名
-    return 301 https://$server_name$request_uri;
+  listen 443 ssl http2;
+  server_name files.{CUSTOM_DOMAIN}; # 文件下载域名
+
+  ssl_certificate     pem 或 crt 文件的路径;
+  ssl_certificate_key key 文件的路径;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
+
+  location / {
+    proxy_pass http://zerotier_files;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+}
+
+server {
+  listen 80;
+  server_name {CUSTOM_DOMAIN} files.{CUSTOM_DOMAIN};
+  return 301 https://$host$request_uri;
 }
 ```
+
+通过反向代理下载文件时，仍然需要请求头认证：
+
+```bash
+FILE_KEY=$(cat ./data/zerotier/config/file_server.key)
+curl -H "Authorization: Bearer ${FILE_KEY}" https://files.{CUSTOM_DOMAIN}/planet -o planet
+```
+
+更多凭据轮换、旧版本迁移、`ztncui` 引用更新和公开访问注意事项见 [SECURITY.md](./SECURITY.md)。
 
 ---
 
@@ -476,7 +526,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: 管理后台忘记密码怎么办？
-**A:** 执行 `./deploy.sh`，选择重置密码即可
+**A:** 执行 `./deploy.sh`，选择重置密码。重置后会生成新的随机密码，并写入 `./data/zerotier/config/ztncui.initial-password`（权限应为 `0600`）。不会恢复为公开默认密码。
 
 ### Q7: 为什么连不上 planet？
 **A:** 请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。Linux 机器上也要放行，如果安装了 ufw 等防火墙工具。
@@ -515,9 +565,11 @@ services:
     ports:
       - 9994:9994
       - 9994:9994/udp
-      - 3443:3443
-      - 3000:3000
+      # 管理界面和文件下载服务默认仅绑定本机；公网访问请使用 TLS 反向代理
+      - 127.0.0.1:3443:3443
+      - 127.0.0.1:3000:3000
     environment:
+      # PUBLIC_HTTP=true 仅适合临时实验环境；生产公网访问请使用 TLS 反向代理
       - IP_ADDR4=[IPV4IP ADDRESS]
       - IP_ADDR6=
       - ZT_PORT=9994

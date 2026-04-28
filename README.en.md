@@ -47,7 +47,8 @@
   - [4.4 macOS](#44-macos)
   - [4.5 OpenWRT](#45-openwrt)
   - [4.6 iOS](#46-ios)
-- [5. SSL for the Management Panel](#5-ssl-for-the-management-panel)
+- [5. TLS / Reverse Proxy for the Management Panel](#5-tls--reverse-proxy-for-the-management-panel)
+- [Security and migration notes](./SECURITY.md)
 - [6. Uninstall](#6-uninstall)
 - [7. FAQ](#7-faq)
 - [8. Roadmap](#8-roadmap)
@@ -239,24 +240,45 @@ Enter a number:
 
 After the script completes, the `planet` and `moon` configuration files are generated in `./data/zerotier/dist`.
 
-You can retrieve them in either of two ways:
+By default, the file download service is intended for local access or HTTPS reverse-proxy access, and the access key is sent in a request header instead of in the URL. The file service key is stored in `./data/zerotier/config/file_server.key`.
 
-1. **Download from the URL shown upon completion**, or
-2. **Use `scp` or another file transfer tool to fetch them from the server**
+Recommended retrieval methods:
 
+1. **Download locally on the server (recommended)**
+   ```bash
+   FILE_KEY=$(cat ./data/zerotier/config/file_server.key)
+   curl -H "Authorization: Bearer ${FILE_KEY}" http://127.0.0.1:3000/planet -o planet
+   # moon example: curl -H "Authorization: Bearer ${FILE_KEY}" http://127.0.0.1:3000/<moon-id>.moon -o <moon-id>.moon
+   ```
+2. **Use `scp`, SFTP, or another file transfer tool to fetch them from the server**
+3. **Use an HTTPS reverse proxy**: configure TLS first in [section 5](#5-tls--reverse-proxy-for-the-management-panel), then use the same `Authorization: Bearer` header.
+
+> **Security:** Do not share command output containing secrets, and do not use secret-bearing query-string download links. `ALLOW_QUERY_FILE_KEY=true` is only a short-term compatibility bridge, is disabled by default, and is planned for removal.
 > **Important:** Keep these files safe—you will need them when configuring clients.
 
 ### 3.5 Create a Network
 
 #### 3.5.1 Access the Controller UI
 
-Open `http://<server-ip>:3443` to access the controller.
+The default deployment binds the management UI to the host loopback address (`127.0.0.1:3443`) to avoid exposing plaintext HTTP on the public internet. Access it locally, through an SSH tunnel, or through a TLS reverse proxy:
+
+```bash
+ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
+# Then open http://127.0.0.1:3443 in your local browser
+```
 
 ![ui](assets/ztncui.png)
 
-**Default credentials:**
-- Username: `admin`
-- Password: `password`
+**Login credentials:**
+- The default username is `admin` (override with `ZTNCUI_USER`)
+- The password is no longer a public default; if `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` is not provided, the installer generates a random password
+- The generated initial password is stored at `./data/zerotier/config/ztncui.initial-password`; change it after first login and store it safely
+
+```bash
+cat ./data/zerotier/config/ztncui.initial-password
+```
+
+> **Security:** Do not use public default management credentials. For public access, prefer the [TLS reverse proxy](#5-tls--reverse-proxy-for-the-management-panel). Public plaintext HTTP is only for temporary lab use and requires an explicit opt-in flag.
 
 #### 3.5.2 Create a Network
 
@@ -388,32 +410,33 @@ Use WireGuard to access the ZeroTier network indirectly.
 
 ---
 
-## 5. SSL for the Management Panel
+## 5. TLS / Reverse Proxy for the Management Panel
 
-Set up SSL via a reverse proxy (e.g., Nginx). Example configuration:
+The default deployment binds the management UI and file download service to host-local addresses (for example `127.0.0.1:3443` and `127.0.0.1:3000`). If you need public access, put them behind HTTPS with valid certificates; do not expose plaintext HTTP directly.
+
+The example below uses separate hostnames for the management UI and file downloads. Adjust it to your gateway layout as needed:
 
 ```nginx
-upstream zerotier {
+upstream zerotier_ui {
   server 127.0.0.1:3443;
 }
 
-server {
-  listen 443 ssl;
-  server_name {CUSTOM_DOMAIN}; # Replace with your domain
+upstream zerotier_files {
+  server 127.0.0.1:3000;
+}
 
-  # SSL certificate paths
+server {
+  listen 443 ssl http2;
+  server_name {CUSTOM_DOMAIN}; # Management UI hostname
+
   ssl_certificate     <path to .pem or .crt>;
   ssl_certificate_key <path to .key>;
-
-  # SSL tuning
-  ssl_session_timeout  5m;
-  ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;
-  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-  ssl_prefer_server_ciphers on;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
 
   location / {
-    proxy_pass http://zerotier;
-    proxy_set_header HOST $host;
+    proxy_pass http://zerotier_ui;
+    proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -421,11 +444,38 @@ server {
 }
 
 server {
-    listen       80;
-    server_name  {CUSTOM_DOMAIN}; # Replace with your domain
-    return 301 https://$server_name$request_uri;
+  listen 443 ssl http2;
+  server_name files.{CUSTOM_DOMAIN}; # File download hostname
+
+  ssl_certificate     <path to .pem or .crt>;
+  ssl_certificate_key <path to .key>;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
+
+  location / {
+    proxy_pass http://zerotier_files;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+}
+
+server {
+  listen 80;
+  server_name {CUSTOM_DOMAIN} files.{CUSTOM_DOMAIN};
+  return 301 https://$host$request_uri;
 }
 ```
+
+Downloads through the reverse proxy still require header authentication:
+
+```bash
+FILE_KEY=$(cat ./data/zerotier/config/file_server.key)
+curl -H "Authorization: Bearer ${FILE_KEY}" https://files.{CUSTOM_DOMAIN}/planet -o planet
+```
+
+See [SECURITY.md](./SECURITY.md) for credential rotation, legacy migration, `ztncui` ref updates, and public-access guidance.
 
 ---
 
@@ -467,7 +517,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: Forgot the management password?
-**A:** Run `./deploy.sh` and select the option to reset the password.
+**A:** Run `./deploy.sh` and select the password reset option. Reset generates a new random password and writes it to `./data/zerotier/config/ztncui.initial-password` (expected mode `0600`). It does not restore a public default password.
 
 ### Q7: Can’t connect to PLANET?
 **A:** Check firewalls. If you’re on Alibaba Cloud, Tencent Cloud, etc., open the required ports in the provider console. Also open them on Linux itself (e.g., `ufw`).
@@ -506,9 +556,11 @@ services:
     ports:
       - 9994:9994
       - 9994:9994/udp
-      - 3443:3443
-      - 3000:3000
+      # Management UI and file downloads are host-local by default; use a TLS reverse proxy for public access
+      - 127.0.0.1:3443:3443
+      - 127.0.0.1:3000:3000
     environment:
+      # PUBLIC_HTTP=true is for temporary lab use only; use a TLS reverse proxy for production public access
       - IP_ADDR4=[IPV4IP ADDRESS]
       - IP_ADDR6=
       - ZT_PORT=9994
