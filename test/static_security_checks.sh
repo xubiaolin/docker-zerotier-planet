@@ -133,17 +133,22 @@ reject_match \
 
 reject_legacy_public_default_bindings
 
+require_match \
+  'deploy default host binding helper returns localhost' \
+  '127\.0\.0\.1' \
+  deploy.sh
+
 require_any_match \
   'deploy binds management port to localhost by default' \
   deploy.sh \
   '127\.0\.0\.1:\$\{?API_PORT\}?:\$\{?API_PORT\}?' \
-  '(BIND|HOST)[A-Z_]*=.*127\.0\.0\.1.*-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?API_PORT\}?:\$\{?API_PORT\}?'
+  '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?API_PORT\}?:\$\{?API_PORT\}?'
 
 require_any_match \
   'deploy binds file-server port to localhost by default' \
   deploy.sh \
   '127\.0\.0\.1:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?' \
-  '(BIND|HOST)[A-Z_]*=.*127\.0\.0\.1.*-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?'
+  '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?'
 
 require_match \
   'Dockerfile declares a pinned ztncui ref build arg' \
