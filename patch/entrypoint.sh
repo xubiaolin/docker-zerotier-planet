@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -x 
+set -eu
 
 # 配置路径和端口
 ZEROTIER_PATH="/var/lib/zerotier-one"
@@ -89,6 +89,56 @@ function check_zerotier() {
     fi
 }
 
+# 初始化 ztncui 管理员凭据
+function init_ztncui_password() {
+    cd $ZTNCUI_SRC_PATH
+
+    PASSWORD="${ZTNCUI_BOOTSTRAP_PASSWORD:-}"
+    if [ -n "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE:-}" ]; then
+        if [ ! -f "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE}" ]; then
+            echo "ZTNCUI_BOOTSTRAP_PASSWORD_FILE does not exist"
+            exit 1
+        fi
+        PASSWORD=$(cat "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE}")
+    fi
+
+    if [ -z "${PASSWORD}" ]; then
+        PASSWORD=$(openssl rand -base64 24 | tr -d '\n')
+        umask 077
+        printf '%s\n' "${PASSWORD}" > ${CONFIG_PATH}/ztncui.initial-password
+        chmod 600 ${CONFIG_PATH}/ztncui.initial-password
+        echo "Generated a unique ztncui admin password; retrieve it from /app/config/ztncui.initial-password"
+    else
+        rm -f ${CONFIG_PATH}/ztncui.initial-password
+        echo "Using operator-provided ztncui bootstrap password"
+    fi
+
+    ZTNCUI_ADMIN_PASSWORD="${PASSWORD}" node <<'NODE'
+const fs = require('fs');
+const argon2 = require('argon2');
+
+(async () => {
+  const password = process.env.ZTNCUI_ADMIN_PASSWORD || '';
+  if (!password) {
+    throw new Error('empty ztncui admin password');
+  }
+  const hash = await argon2.hash(password, { type: argon2.argon2i });
+  const users = {
+    admin: {
+      name: 'admin',
+      pass_set: true,
+      hash,
+    },
+  };
+  fs.writeFileSync('etc/passwd', JSON.stringify(users));
+})().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});
+NODE
+    unset PASSWORD ZTNCUI_ADMIN_PASSWORD
+}
+
 # 初始化 ztncui 数据
 function init_ztncui_data() {
     echo "Initializing ztncui data"
@@ -100,9 +150,9 @@ function init_ztncui_data() {
     cd $ZTNCUI_SRC_PATH
     echo "HTTP_PORT=${API_PORT}" > .env
     echo 'NODE_ENV=production' >> .env
-    echo 'HTTP_ALL_INTERFACES=true' >> .env
+    echo "HTTP_ALL_INTERFACES=${ZTNCUI_HTTP_ALL_INTERFACES:-true}" >> .env
     echo "ZT_ADDR=localhost:${ZT_PORT}" >> .env
-    cp -v etc/default.passwd etc/passwd
+    init_ztncui_password
     TOKEN=$(cat ${ZEROTIER_PATH}/authtoken.secret)
     echo "ZT_TOKEN=$TOKEN" >> .env
     echo "ztncui configuration successful!"

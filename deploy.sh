@@ -8,6 +8,102 @@ ZTNCUI_PATH="${ZEROTIER_PATH}/ztncui"
 DOCKER_IMAGE_THRID="xubiaolin/zerotier-planet:latest"
 DOCKER_IMAGE_SRC="xubiaolin/zerotier-planet:latest"
 DOCKER_IMAGE=$DOCKER_IMAGE_THRID
+
+PUBLIC_HTTP=${PUBLIC_HTTP:-false}
+
+public_http_enabled() {
+    [[ "${PUBLIC_HTTP}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
+}
+
+host_bind_ip() {
+    if public_http_enabled; then
+        echo "0.0.0.0"
+    else
+        echo "127.0.0.1"
+    fi
+}
+
+warn_public_http() {
+    if public_http_enabled; then
+        print_message "警告：PUBLIC_HTTP=true 已启用，管理界面和文件服务将暴露到所有主机网络接口。仅建议在受信任网络或已配置外部 TLS/防火墙时使用。" "31"
+    fi
+}
+
+print_ztncui_credential_help() {
+    echo "ztncui 管理用户名：admin"
+    echo "初始密码不会在脚本输出中显示。请在本机执行以下命令读取一次性初始密码："
+    echo "docker exec ${CONTAINER_NAME} sh -c 'cat /app/config/ztncui.initial-password'"
+    echo "登录后请立即修改管理员密码。"
+}
+
+print_download_help() {
+    local access_host=$1
+    local file_port=$2
+    local moon_name=$3
+    echo "moon配置和planet配置在 ${DIST_PATH} 目录下"
+    echo "文件服务密钥不会在脚本输出中显示。请使用 Authorization Bearer 请求头下载："
+    echo "FILE_KEY=\$(cat ${CONFIG_PATH}/file_server.key)"
+    echo "curl -H \"Authorization: Bearer \${FILE_KEY}\" -o planet http://${access_host}:${file_port}/planet"
+    if [ -n "${moon_name}" ]; then
+        echo "curl -H \"Authorization: Bearer \${FILE_KEY}\" -o ${moon_name} http://${access_host}:${file_port}/${moon_name}"
+    fi
+}
+
+reset_ztncui_password_in_container() {
+    if [ -n "${1:-}" ]; then
+        printf '%s\n' "$1" | docker exec -i ${CONTAINER_NAME} sh -c '
+set -eu
+TMP_PASSWORD_FILE=$(mktemp /tmp/ztncui-reset.XXXXXX)
+trap "rm -f ${TMP_PASSWORD_FILE}" EXIT
+cat > ${TMP_PASSWORD_FILE}
+chmod 600 ${TMP_PASSWORD_FILE}
+cd /app/ztncui/src
+ZTNCUI_RESET_PASSWORD_FILE=${TMP_PASSWORD_FILE} node <<"NODE"
+const fs = require("fs");
+const argon2 = require("argon2");
+
+(async () => {
+  const password = fs.readFileSync(process.env.ZTNCUI_RESET_PASSWORD_FILE, "utf8").replace(/\r?\n$/, "");
+  if (!password) {
+    throw new Error("empty ztncui admin password");
+  }
+  const hash = await argon2.hash(password, { type: argon2.argon2i });
+  fs.writeFileSync("etc/passwd", JSON.stringify({ admin: { name: "admin", pass_set: true, hash } }));
+  fs.rmSync("/app/config/ztncui.initial-password", { force: true });
+})().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});
+NODE
+'
+    else
+        docker exec -i ${CONTAINER_NAME} sh -c '
+set -eu
+mkdir -p /app/config
+umask 077
+PASSWORD=$(openssl rand -base64 24 | tr -d "\n")
+printf "%s\n" "${PASSWORD}" > /app/config/ztncui.initial-password
+chmod 600 /app/config/ztncui.initial-password
+cd /app/ztncui/src
+ZTNCUI_RESET_PASSWORD_FILE=/app/config/ztncui.initial-password node <<"NODE"
+const fs = require("fs");
+const argon2 = require("argon2");
+
+(async () => {
+  const password = fs.readFileSync(process.env.ZTNCUI_RESET_PASSWORD_FILE, "utf8").replace(/\r?\n$/, "");
+  if (!password) {
+    throw new Error("empty ztncui admin password");
+  }
+  const hash = await argon2.hash(password, { type: argon2.argon2i });
+  fs.writeFileSync("etc/passwd", JSON.stringify({ admin: { name: "admin", pass_set: true, hash } }));
+})().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});
+NODE
+'
+    fi
+}
 print_message() {
     local message=$1
     local color_code=$2
@@ -167,12 +263,15 @@ install() {
     echo "IPv6地址为：${ipv6}"
     echo "---------------------------"
 
+    HOST_BIND_IP=$(host_bind_ip)
+    warn_public_http
+
     docker run -d \
         --name ${CONTAINER_NAME} \
         -p ${ZT_PORT}:${ZT_PORT} \
         -p ${ZT_PORT}:${ZT_PORT}/udp \
-        -p ${API_PORT}:${API_PORT} \
-        -p ${FILE_PORT}:${FILE_PORT} \
+        -p ${HOST_BIND_IP}:${API_PORT}:${API_PORT} \
+        -p ${HOST_BIND_IP}:${FILE_PORT}:${FILE_PORT} \
         -e IP_ADDR4=${ipv4} \
         -e IP_ADDR6=${ipv6} \
         -e ZT_PORT=${ZT_PORT} \
@@ -187,21 +286,21 @@ install() {
 
     sleep 10
 
-    KEY=$(docker exec -it ${CONTAINER_NAME} sh -c 'cat /app/config/file_server.key' | tr -d '\r')
     MOON_NAME=$(docker exec -it ${CONTAINER_NAME} sh -c 'ls /app/dist | grep moon' | tr -d '\r')
+    ACCESS_HOST=$(host_bind_ip)
 
     echo "安装完成"
     echo "---------------------------"
-    echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
-    echo "默认用户名：admin"
-    echo "默认密码：password"
-    echo "请及时修改密码"
+    echo "管理界面默认仅绑定到本机： http://${ACCESS_HOST}:${API_PORT}"
+    print_ztncui_credential_help
     echo "---------------------------"
-    echo "moon配置和planet配置在 ${DIST_PATH} 目录下"
-    echo "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
-    echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+    print_download_help "${ACCESS_HOST}" "${FILE_PORT}" "${MOON_NAME}"
     echo "---------------------------"
-    echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp，${API_PORT}/tcp，${FILE_PORT}/tcp"
+    if public_http_enabled; then
+        echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp，${API_PORT}/tcp，${FILE_PORT}/tcp"
+    else
+        echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp。管理界面和文件服务默认仅本机访问；如需远程访问，请使用 SSH 隧道/反向代理，或明确设置 PUBLIC_HTTP=true。"
+    fi
     echo "---------------------------"
 }
 
@@ -221,7 +320,6 @@ install_from_config() {
     API_PORT=$(extract_config "ztncui.port")
     FILE_PORT=$(extract_config "file_server.port")
     ZT_PORT=$(extract_config "zerotier-one.port")
-    KEY=$(extract_config "file_server.key")
     MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
 
     echo "---------------------------"
@@ -230,16 +328,18 @@ install_from_config() {
     echo "API_PORT:${API_PORT}"
     echo "FILE_PORT:${FILE_PORT}"
     echo "ZT_PORT:${ZT_PORT}"
-    echo "KEY:${KEY}"
     echo "MOON_NAME:${MOON_NAME}"
     echo "---------------------------"
+
+    HOST_BIND_IP=$(host_bind_ip)
+    warn_public_http
 
     docker run -d \
         --name ${CONTAINER_NAME} \
         -p ${ZT_PORT}:${ZT_PORT} \
         -p ${ZT_PORT}:${ZT_PORT}/udp \
-        -p ${API_PORT}:${API_PORT} \
-        -p ${FILE_PORT}:${FILE_PORT} \
+        -p ${HOST_BIND_IP}:${API_PORT}:${API_PORT} \
+        -p ${HOST_BIND_IP}:${FILE_PORT}:${FILE_PORT} \
         -e IP_ADDR4=${ipv4} \
         -e IP_ADDR6=${ipv6} \
         -e ZT_PORT=${ZT_PORT} \
@@ -298,20 +398,20 @@ info() {
     API_PORT=$(extract_config "ztncui.port")
     FILE_PORT=$(extract_config "file_server.port")
     ZT_PORT=$(extract_config "zerotier-one.port")
-    KEY=$(extract_config "file_server.key")
     MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
+    ACCESS_HOST=$(host_bind_ip)
 
     echo "---------------------------"
-    print_message "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}" "32"
+    if public_http_enabled; then
+        print_message "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}" "32"
+    else
+        print_message "ZeroTier 端口需放行：${ZT_PORT}/tcp, ${ZT_PORT}/udp；管理界面和文件服务默认仅本机访问。" "32"
+    fi
     echo "---------------------------"
-    echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
-    echo "默认用户名：admin"
-    echo "默认密码：password"
-    echo "请及时修改密码"
+    echo "管理界面： http://${ACCESS_HOST}:${API_PORT}"
+    print_ztncui_credential_help
     echo "---------------------------"
-    print_message "moon配置和planet配置在 ${DIST_PATH} 目录下" "32"
-    print_message "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} " "32"
-    print_message "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} " "32"
+    print_download_help "${ACCESS_HOST}" "${FILE_PORT}" "${MOON_NAME}"
 }
 
 uninstall() {
@@ -330,7 +430,15 @@ uninstall() {
 }
 
 resetpwd() {
-    docker exec -it ${CONTAINER_NAME} sh -c 'cp /app/ztncui/src/etc/default.passwd /app/ztncui/src/etc/passwd'
+    if ! docker inspect ${CONTAINER_NAME} &>/dev/null; then
+        echo "容器${CONTAINER_NAME}不存在，请先安装"
+        exit 1
+    fi
+
+    read -s -p "请输入新的 admin 密码（留空将自动生成并保存到容器 /app/config/ztncui.initial-password）：" new_password
+    echo
+
+    reset_ztncui_password_in_container "${new_password}"
     if [ $? -ne 0 ]; then
         echo "重置密码失败"
         exit 1
@@ -344,7 +452,13 @@ resetpwd() {
 
     echo "--------------------------------"
     echo "重置密码成功"
-    echo "当前用户名 admin, 密码为 password"
+    echo "当前用户名：admin"
+    if [ -z "${new_password}" ]; then
+        echo "已自动生成新密码。请执行以下命令读取："
+        echo "docker exec ${CONTAINER_NAME} sh -c 'cat /app/config/ztncui.initial-password'"
+    else
+        echo "已使用你输入的新密码；脚本不会回显该密码。"
+    fi
     echo "--------------------------------"
 }
 
