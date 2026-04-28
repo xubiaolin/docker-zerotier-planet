@@ -531,6 +531,11 @@ services:
     restart: unless-stopped
 ```
 
+### Q13: 构建时是否锁定 ztncui 版本？
+**A:** 是。`Dockerfile` 通过 `ZTNCUI_REF` 固定 `ztncui` 到完整提交 `1b2284864de48d2dcae22582fff122fe24909c3d`，并在构建时校验 `git rev-parse HEAD` 必须等于该值；GitHub Actions 也显式传入同一个构建参数，避免默认跟随上游 `master` 漂移。
+
+如需升级 `ztncui`，请先审查上游变更，再同步更新 `Dockerfile` 默认 `ZTNCUI_REF` 和 `.github/workflows/image-build.yml` 中的 `ZTNCUI_REF`，然后重新构建验证。当前上游固定提交不包含 `package-lock.json`/`npm-shrinkwrap.json`，镜像仍会执行 `npm install` 解析 npm 传递依赖；在引入经审查的锁文件前，这仍是已知的剩余可复现性风险。
+
 ---
 
 ## 8. 开发计划

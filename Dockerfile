@@ -2,6 +2,8 @@ FROM alpine:3.14 as builder
 
 ENV TZ=Asia/Shanghai
 ARG TAG=actions
+ARG ZTNCUI_REPO=https://github.com/key-networks/ztncui.git
+ARG ZTNCUI_REF=1b2284864de48d2dcae22582fff122fe24909c3d
 ENV TAG=${TAG}
 
 WORKDIR /app
@@ -42,11 +44,16 @@ RUN set -x\
 
 
 
-#make ztncui 
+# make ztncui from an explicit, verified source commit.
+# Keep ZTNCUI_REF as a full commit SHA so builds cannot silently track moving upstream HEAD.
 RUN set -x \
     && mkdir /app -p \
-    &&  cd /app \
-    && git clone --progress https://github.com/key-networks/ztncui.git\
+    && cd /app \
+    && git clone --progress "${ZTNCUI_REPO}" ztncui\
+    && cd /app/ztncui \
+    && git checkout --detach "${ZTNCUI_REF}" \
+    && test "$(git rev-parse HEAD)" = "${ZTNCUI_REF}" \
+    && echo "Using ztncui commit: $(git rev-parse HEAD)" \
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
     && npm install -g node-gyp\

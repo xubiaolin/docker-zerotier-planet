@@ -522,6 +522,11 @@ services:
     restart: unless-stopped
 ```
 
+### Q13: Is the ztncui version pinned during builds?
+**A:** Yes. `Dockerfile` pins `ztncui` with `ZTNCUI_REF` to the full commit `1b2284864de48d2dcae22582fff122fe24909c3d` and verifies at build time that `git rev-parse HEAD` equals that value. GitHub Actions passes the same build argument explicitly so builds do not silently follow upstream `master`.
+
+To upgrade `ztncui`, review the upstream changes first, then update both the default `ZTNCUI_REF` in `Dockerfile` and the `ZTNCUI_REF` in `.github/workflows/image-build.yml`, and rebuild for verification. The pinned upstream commit does not include `package-lock.json` or `npm-shrinkwrap.json`, so the image still runs `npm install` to resolve npm transitive dependencies; until a reviewed lockfile is added, this remains a known residual reproducibility risk.
+
 ---
 
 ## 8. Roadmap

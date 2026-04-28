@@ -1,5 +1,8 @@
 name: Docker Build on ZeroTier
 
+env:
+  ZTNCUI_REF: 1b2284864de48d2dcae22582fff122fe24909c3d
+
 on:
   push:
     branches:
@@ -15,7 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get latest Tailscale tag
+      - name: Get latest ZeroTier tag
         id: get_tag
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repos/zerotier/ZeroTierOne/tags | jq -r '.[0].name')
