@@ -1,4 +1,4 @@
-FROM alpine:3.14 as builder
+FROM alpine:3.14 AS builder
 
 ENV TZ=Asia/Shanghai
 ARG TAG=actions
