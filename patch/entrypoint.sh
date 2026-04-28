@@ -107,7 +107,7 @@ function init_ztncui_password() {
         umask 077
         printf '%s\n' "${PASSWORD}" > ${CONFIG_PATH}/ztncui.initial-password
         chmod 600 ${CONFIG_PATH}/ztncui.initial-password
-        echo "Generated a unique ztncui admin password; retrieve it from /app/config/ztncui.initial-password"
+        echo "Generated a unique ztncui credential; retrieve it from /app/config/ztncui.initial-password"
     else
         rm -f ${CONFIG_PATH}/ztncui.initial-password
         echo "Using operator-provided ztncui bootstrap password"
@@ -120,7 +120,7 @@ const argon2 = require('argon2');
 (async () => {
   const password = process.env.ZTNCUI_ADMIN_PASSWORD || '';
   if (!password) {
-    throw new Error('empty ztncui admin password');
+    throw new Error('empty ztncui credential');
   }
   const hash = await argon2.hash(password, { type: argon2.argon2i });
   const users = {

@@ -65,7 +65,7 @@ const argon2 = require("argon2");
 (async () => {
   const password = fs.readFileSync(process.env.ZTNCUI_RESET_PASSWORD_FILE, "utf8").replace(/\r?\n$/, "");
   if (!password) {
-    throw new Error("empty ztncui admin password");
+    throw new Error("empty ztncui credential");
   }
   const hash = await argon2.hash(password, { type: argon2.argon2i });
   fs.writeFileSync("etc/passwd", JSON.stringify({ admin: { name: "admin", pass_set: true, hash } }));
@@ -92,7 +92,7 @@ const argon2 = require("argon2");
 (async () => {
   const password = fs.readFileSync(process.env.ZTNCUI_RESET_PASSWORD_FILE, "utf8").replace(/\r?\n$/, "");
   if (!password) {
-    throw new Error("empty ztncui admin password");
+    throw new Error("empty ztncui credential");
   }
   const hash = await argon2.hash(password, { type: argon2.argon2i });
   fs.writeFileSync("etc/passwd", JSON.stringify({ admin: { name: "admin", pass_set: true, hash } }));
@@ -435,7 +435,7 @@ resetpwd() {
         exit 1
     fi
 
-    read -s -p "请输入新的 admin 密码（留空将自动生成并保存到容器 /app/config/ztncui.initial-password）：" new_password
+    read -s -p "请输入新的管理员密码（留空将自动生成并保存到容器 /app/config/ztncui.initial-password）：" new_password
     echo
 
     reset_ztncui_password_in_container "${new_password}"
