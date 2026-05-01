@@ -6,7 +6,7 @@
 
 # Docker ZeroTier Planet
 
-> 一键部署 ZeroTier Planet 服务器，支持 Docker 容器化部署
+> 使用 Docker Compose 部署 ZeroTier Planet 服务器，支持容器化运行与维护
 
 ## 📢 交流群
 
@@ -29,7 +29,7 @@
 - 🐳 Docker 容器化部署
 - 📥 支持 URL 下载 planet、moon 配置
 - 🌐 可作为 Moon 或 Planet 服务器搭建
-- 🔧 简单易用的一键部署脚本
+- 🔧 基于 Docker Compose 的部署与维护流程
 - 📊 可视化 Web 管理界面
 
 ## 📋 目录
@@ -40,7 +40,7 @@
 - [3. 开始安装](#3-开始安装)
   - [3.1 环境准备](#31-环境准备)
   - [3.2 下载项目源码](#32-下载项目源码)
-  - [3.3 执行安装脚本](#33-执行安装脚本)
+  - [3.3 使用 Docker Compose 安装](#33-使用-docker-compose-安装)
   - [3.4 下载 planet 文件](#34-下载-planet-文件)
   - [3.5 新建网络](#35-新建网络)
 - [4. 客户端配置](#4-客户端配置)
@@ -236,16 +236,9 @@ docker compose up -d
 
 4. **查看访问信息：**
 ```bash
-./scripts/ztplanet.sh info
+docker compose ps
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
 ```
-
-兼容旧入口仍可使用：
-
-```bash
-./deploy.sh
-```
-
-`deploy.sh` 现在只是菜单层，内部调用 `scripts/ztplanet.sh install|upgrade|info|reset-password|uninstall|doctor`，和 Compose 使用同一套 `.env` 与数据目录。
 
 ### 3.4 下载 planet 文件
 
@@ -282,11 +275,11 @@ ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
 
 **登录信息：**
 - 用户名默认是 `admin`（可通过 `ZTNCUI_USER` 修改）
-- 密码不再使用公开默认值；如未通过 `ZTNCUI_PASSWORD`/`ZTNCUI_PASSWD` 指定，安装脚本会生成随机密码
+- 密码不再使用公开默认值；如未通过 `ZTNCUI_PASSWORD`/`ZTNCUI_PASSWD` 指定，容器首次启动时会生成随机密码
 - 生成的初始密码保存在 `./data/zerotier/config/ztncui.initial-password`，建议首次登录后立即修改并妥善保存
 
 ```bash
-docker exec myztplanet sh -c 'cat /app/config/ztncui.initial-password'
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
 ```
 
 > **安全提示**：不要再使用公开默认管理凭据。如果确实需要把管理界面暴露到公网，请优先使用 [TLS 反向代理](#5-管理面板-tls反向代理配置)；公网明文 HTTP 仅适合临时实验环境，并需要显式开启相应公开访问开关。
@@ -534,15 +527,28 @@ curl -H "Authorization: Bearer ${FILE_KEY}" https://files.{CUSTOM_DOMAIN}/planet
 
 ## 6. 卸载
 
+停止并删除容器：
+
 ```bash
-./scripts/ztplanet.sh uninstall
+docker compose down
 ```
 
-升级与维护命令：
+如需同时删除数据目录：
 
 ```bash
-./scripts/ztplanet.sh upgrade
-./scripts/ztplanet.sh info
+rm -rf ./data/zerotier
+```
+
+升级：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+可选维护命令：
+
+```bash
 ./scripts/ztplanet.sh reset-password
 ./scripts/ztplanet.sh doctor
 ```
@@ -581,7 +587,13 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: 管理后台忘记密码怎么办？
-**A:** 执行 `./scripts/ztplanet.sh reset-password`。重置后会生成新的随机密码，并写入容器内 `/app/config/ztncui.initial-password`（宿主机对应 `./data/zerotier/config/ztncui.initial-password`，权限应为 `0600`）。不会恢复为公开默认密码。
+**A:** 可以执行 `./scripts/ztplanet.sh reset-password`，或直接在容器内重置。下面示例会生成新密码、写入 `/app/config/ztncui.initial-password`，并立即应用：
+
+```bash
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'umask 077; openssl rand -base64 24 | tr -d "\n" > /app/config/ztncui.initial-password; printf "\n" >> /app/config/ztncui.initial-password; ZTNCUI_ADMIN_PASSWORD_FILE=/app/config/ztncui.initial-password node /app/ztncui_admin.js'
+docker restart ${CONTAINER_NAME:-myztplanet}
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
+```
 
 ### Q7: 为什么连不上 planet？
 **A:** 请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。Linux 机器上也要放行，如果安装了 ufw 等防火墙工具。
@@ -607,8 +619,8 @@ ab403e2074 1.10.2 LEAF      -1 RELAY
 ### Q11: ARM 服务器可以搭建吗？
 **A:** 可以
 
-### Q12: 支持 docker-compose 启动部署吗？
-**A:** 支持，并且现在推荐直接使用仓库内的 `compose.yaml`：
+### Q12: 推荐用什么方式部署？
+**A:** 推荐直接使用仓库内的 `compose.yaml`：
 
 ```bash
 cp .env.example .env

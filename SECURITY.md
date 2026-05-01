@@ -4,21 +4,21 @@ This project is intended to be secure by default for fresh self-hosted deploymen
 
 ## Fresh installs
 
-- Recommended deployments start from `.env.example`, then run `docker compose up -d`. The legacy `./deploy.sh` menu remains available, but it calls the same `scripts/ztplanet.sh` maintenance commands and uses the same Compose config.
+- Recommended deployments start from `.env.example`, then run `docker compose up -d`.
 - `compose.yaml` binds the management UI and file server to `127.0.0.1` by default through `HOST_BIND_IP=127.0.0.1`. Keep this default unless you are placing a TLS reverse proxy or SSH tunnel in front of the services.
 - The management UI username defaults to `admin` unless `ZTNCUI_USER` is set.
 - The management password is no longer a public default. Set `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` explicitly, or let the installer generate a random password.
 - Generated credentials are written to `/app/config/ztncui.initial-password` in the container, mapped to `./data/zerotier/config/ztncui.initial-password` on the host, with restrictive permissions. Read it locally and rotate it after first login:
 
   ```bash
-  docker exec myztplanet sh -c 'cat /app/config/ztncui.initial-password'
+  docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
   ```
 
 ## Password reset and existing deployments
 
-- Password reset uses `./scripts/ztplanet.sh reset-password` and rotates to a newly generated password instead of restoring a public default.
+- Password reset can use `./scripts/ztplanet.sh reset-password`, or the equivalent documented `docker exec` flow, and rotates to a newly generated password instead of restoring a public default.
 - Existing custom `ztncui` password files are preserved.
-- Existing installations that still match the upstream public default credential should be rotated immediately with `./scripts/ztplanet.sh reset-password`.
+- Existing installations that still match the upstream public default credential should be rotated immediately with `./scripts/ztplanet.sh reset-password` or the documented `docker exec` reset procedure.
 - After rotation, retrieve the generated password from `./data/zerotier/config/ztncui.initial-password`, log in, and change it to an operator-managed secret.
 
 ## File downloads
@@ -55,17 +55,17 @@ Builds select ZeroTier One with `ZEROTIER_REF` and pin `ztncui` with `ZTNCUI_REF
 
 ### 全新安装
 
-- 推荐部署流程是复制 `.env.example` 为 `.env`，再执行 `docker compose up -d`。旧的 `./deploy.sh` 菜单仍保留，但内部调用同一套 `scripts/ztplanet.sh` 维护命令和 Compose 配置。
+- 推荐部署流程是复制 `.env.example` 为 `.env`，再执行 `docker compose up -d`。
 - `compose.yaml` 默认通过 `HOST_BIND_IP=127.0.0.1` 将管理界面和文件服务绑定到宿主机本机地址。除非前面有 TLS 反向代理或 SSH 隧道，否则不要改为公网绑定。
 - 管理界面用户名默认是 `admin`，可通过 `ZTNCUI_USER` 修改。
-- 管理密码不再使用公开默认值。可以通过 `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` 指定；未指定时安装脚本会生成随机密码。
+- 管理密码不再使用公开默认值。可以通过 `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` 指定；未指定时容器首次启动会生成随机密码。
 - 生成的初始密码保存在容器内 `/app/config/ztncui.initial-password`，宿主机路径为 `./data/zerotier/config/ztncui.initial-password`，应只在本机读取，并在首次登录后立即修改。
 
 ### 密码重置与旧版本迁移
 
 - 重置密码会生成新的随机密码，不会恢复公开默认密码。
 - 已经自定义过的 `ztncui` 密码文件会被保留。
-- 如果旧部署仍使用上游公开默认凭据，请立即执行 `./scripts/ztplanet.sh reset-password`。
+- 如果旧部署仍使用上游公开默认凭据，请立即执行 `./scripts/ztplanet.sh reset-password` 或文档中的 `docker exec` 重置流程。
 
 ### 文件下载
 

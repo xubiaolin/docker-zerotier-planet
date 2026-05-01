@@ -50,23 +50,6 @@ require_any_match() {
   report_fail "$name (none of the accepted patterns were found in $file)"
 }
 
-reject_legacy_public_default_bindings() {
-  local direct_public='-p[[:space:]]+\$\{?(API_PORT|FILE_PORT)\}?:\$\{?(API_PORT|FILE_PORT)\}?'
-  local explicit_opt_in='PUBLIC_HTTP|ZTNCUI_HTTP_PUBLIC|FILE_SERVER_HTTP_PUBLIC|HTTP_PUBLIC'
-  local output
-  if output=$(grep -nE -- "$direct_public" deploy.sh 2>/dev/null); then
-    if grep -Eq -- "$explicit_opt_in" deploy.sh; then
-      report_pass 'deploy gates public management/file-server bindings behind an explicit opt-in flag'
-    else
-      report_fail 'deploy does not publish management/file-server ports on every host interface by default (unexpected direct public bindings):'
-      printf '%s
-' "$output" >&2
-    fi
-  else
-    report_pass 'deploy does not publish management/file-server ports on every host interface by default'
-  fi
-}
-
 reject_match() {
   local name="$1"
   local pattern="$2"
@@ -85,7 +68,6 @@ tracked_security_files=(
   .dockerignore
   compose.yaml
   .env.example
-  deploy.sh
   scripts/install-zerotier-client.sh
   scripts/install-zerotier-client.ps1
   scripts/ztplanet.sh
@@ -98,7 +80,6 @@ tracked_security_files=(
 )
 
 docs_and_deploy=(
-  deploy.sh
   scripts/ztplanet.sh
   README.md
   README.en.md
@@ -180,6 +161,16 @@ require_match \
   README.md
 
 require_match \
+  'Chinese README install section uses Docker Compose wording' \
+  '### 3\.3 使用 Docker Compose 安装' \
+  README.md
+
+require_match \
+  'English README install section uses Docker Compose wording' \
+  '### 3\.3 Install with Docker Compose' \
+  README.en.md
+
+require_match \
   'compose binds management UI to localhost by default' \
   '\$\{HOST_BIND_IP:-127\.0\.0\.1\}:\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' \
   compose.yaml
@@ -195,7 +186,7 @@ require_match \
   .env.example
 
 require_match \
-  'ztplanet maintenance script exposes reset-password command' \
+  'maintenance helper exposes reset-password command' \
   'reset-password' \
   scripts/ztplanet.sh
 
@@ -229,17 +220,25 @@ reject_match \
   'HTTP_ALL_INTERFACES=true' \
   patch/entrypoint.sh
 
-reject_match \
-  'deploy output does not print raw file-server key variables' \
-  '(KEY:[[:space:]]*\$\{?KEY\}?|echo[[:space:]].*(KEY|key).*\$\{?KEY\}?|print_message[[:space:]].*\$\{?KEY\}?)' \
-  deploy.sh
+require_match \
+  'maintenance helper exposes doctor command' \
+  'doctor' \
+  scripts/ztplanet.sh
 
-reject_legacy_public_default_bindings
+reject_match \
+  'maintenance helper does not expose install wrappers anymore' \
+  '(install|upgrade|uninstall|info)' \
+  scripts/ztplanet.sh
+
+reject_match \
+  'server deployment docs no longer reference deploy.sh' \
+  'deploy\.sh' \
+  README.md README.en.md SECURITY.md
 
 require_match \
-  'maintenance script default host binding returns localhost' \
-  '127\.0\.0\.1' \
-  scripts/ztplanet.sh .env.example compose.yaml
+  'README title no longer advertises one-click server deployment' \
+  '^>[[:space:]]*(使用 Docker Compose 部署|Deploy a ZeroTier Planet server with Docker Compose)' \
+  README.md README.en.md
 
 require_match \
   'maintenance script validates numeric ports from config files' \

@@ -6,7 +6,7 @@
 
 # Docker ZeroTier Planet
 
-> One‑click deployment of a ZeroTier **Planet** server, with Docker‑based containerized installation.
+> Deploy a ZeroTier Planet server with Docker Compose for containerized runtime and maintenance.
 
 ## 📢 Community
 
@@ -28,7 +28,7 @@
 - 🐳 Docker containerized deployment
 - 📥 Supports downloading **planet** and **moon** configuration files via URL
 - 🌐 Can be deployed as either a **Moon** or **Planet** server
-- 🔧 Simple one‑click deployment script
+- 🔧 Docker Compose based deployment and maintenance workflow
 - 📊 Visual, web‑based management UI
 
 ## 📋 Table of Contents
@@ -39,7 +39,7 @@
 - [3. Getting Started](#3-getting-started)
   - [3.1 Prerequisites](#31-prerequisites)
   - [3.2 Get the Source Code](#32-get-the-source-code)
-  - [3.3 Run the Installer](#33-run-the-installer)
+  - [3.3 Install with Docker Compose](#33-install-with-docker-compose)
   - [3.4 Download the planet File](#34-download-the-planet-file)
   - [3.5 Create a Network](#35-create-a-network)
 - [4. Client Configuration](#4-client-configuration)
@@ -230,18 +230,11 @@ Set at least one of `IP_ADDR4` or `IP_ADDR6`. The default `HOST_BIND_IP=127.0.0.
 docker compose up -d
 ```
 
-4. **Show access information:**
+4. **Check access information:**
 ```bash
-./scripts/ztplanet.sh info
+docker compose ps
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
 ```
-
-The old entry point is still available:
-
-```bash
-./deploy.sh
-```
-
-`deploy.sh` is now a compatibility menu that calls `scripts/ztplanet.sh install|upgrade|info|reset-password|uninstall|doctor` and uses the same `.env` file and data directories as Compose.
 
 ### 3.4 Download the planet File
 
@@ -278,11 +271,11 @@ ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
 
 **Login credentials:**
 - The default username is `admin` (override with `ZTNCUI_USER`)
-- The password is no longer a public default; if `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` is not provided, the installer generates a random password
+- The password is no longer a public default; if `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` is not provided, the container generates a random password on first start
 - The generated initial password is stored at `./data/zerotier/config/ztncui.initial-password`; change it after first login and store it safely
 
 ```bash
-docker exec myztplanet sh -c 'cat /app/config/ztncui.initial-password'
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
 ```
 
 > **Security:** Do not use public default management credentials. For public access, prefer the [TLS reverse proxy](#5-tls--reverse-proxy-for-the-management-panel). Public plaintext HTTP is only for temporary lab use and requires an explicit opt-in flag.
@@ -529,15 +522,28 @@ See [SECURITY.md](./SECURITY.md) for credential rotation, legacy migration, `ztn
 
 ## 6. Uninstall
 
+Stop and remove the services:
+
 ```bash
-./scripts/ztplanet.sh uninstall
+docker compose down
 ```
 
-Maintenance commands:
+To remove persisted data as well:
 
 ```bash
-./scripts/ztplanet.sh upgrade
-./scripts/ztplanet.sh info
+rm -rf ./data/zerotier
+```
+
+Upgrade:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Optional maintenance commands:
+
+```bash
 ./scripts/ztplanet.sh reset-password
 ./scripts/ztplanet.sh doctor
 ```
@@ -574,7 +580,13 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: Forgot the management password?
-**A:** Run `./scripts/ztplanet.sh reset-password`. Reset generates a new random password and writes it to `/app/config/ztncui.initial-password` inside the container, mapped to `./data/zerotier/config/ztncui.initial-password` on the host. It does not restore a public default password.
+**A:** You can run `./scripts/ztplanet.sh reset-password`, or reset it directly in the container. The example below generates a new password, stores it in `/app/config/ztncui.initial-password`, and applies it immediately:
+
+```bash
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'umask 077; openssl rand -base64 24 | tr -d "\n" > /app/config/ztncui.initial-password; printf "\n" >> /app/config/ztncui.initial-password; ZTNCUI_ADMIN_PASSWORD_FILE=/app/config/ztncui.initial-password node /app/ztncui_admin.js'
+docker restart ${CONTAINER_NAME:-myztplanet}
+docker exec ${CONTAINER_NAME:-myztplanet} sh -c 'cat /app/config/ztncui.initial-password'
+```
 
 ### Q7: Can’t connect to PLANET?
 **A:** Check firewalls. If you’re on Alibaba Cloud, Tencent Cloud, etc., open the required ports in the provider console. Also open them on Linux itself (e.g., `ufw`).
@@ -600,8 +612,8 @@ If your peer shows `RELAY`, traffic is being relayed.
 ### Q11: Can I deploy on ARM servers?
 **A:** Yes.
 
-### Q12: Do you support `docker-compose`?
-**A:** Yes. The recommended flow uses the repository's `compose.yaml`:
+### Q12: What deployment method do you recommend?
+**A:** Use the repository's `compose.yaml` directly:
 
 ```bash
 cp .env.example .env

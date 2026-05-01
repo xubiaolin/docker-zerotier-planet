@@ -4,16 +4,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
-ENV_EXAMPLE="${ROOT_DIR}/.env.example"
-DATA_DIR="${ROOT_DIR}/data/zerotier"
-CONFIG_DIR="${DATA_DIR}/config"
-DIST_DIR="${DATA_DIR}/dist"
-
-print_message() {
-  local message=$1
-  local color=${2:-0}
-  printf '\033[%sm%s\033[0m\n' "$color" "$message"
-}
 
 compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -37,17 +27,6 @@ load_env() {
   API_PORT="${API_PORT:-3443}"
   FILE_SERVER_PORT="${FILE_SERVER_PORT:-3000}"
   ZT_PORT="${ZT_PORT:-9994}"
-  HOST_BIND_IP="${HOST_BIND_IP:-127.0.0.1}"
-}
-
-public_http_enabled() {
-  [[ "${PUBLIC_HTTP:-false}" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Yy])$ ]]
-}
-
-warn_public_http() {
-  if public_http_enabled; then
-    print_message "警告：PUBLIC_HTTP=true 已启用，管理界面和文件服务将暴露到 HOST_BIND_IP=${HOST_BIND_IP:-0.0.0.0}。" "31"
-  fi
 }
 
 validate_port() {
@@ -104,59 +83,6 @@ validate_env() {
   validate_ip_value "${IP_ADDR6:-}" "IPv6 地址" "6"
 }
 
-ensure_env() {
-  if [[ -f "$ENV_FILE" ]]; then
-    return 0
-  fi
-  cp "$ENV_EXAMPLE" "$ENV_FILE"
-  print_message "已创建 .env，请按需编辑 IP_ADDR4/IP_ADDR6 和端口后重新运行安装。" "33"
-}
-
-read_initial_password_help() {
-  echo "ztncui 用户名：admin"
-  echo "初始密码读取命令：docker exec ${CONTAINER_NAME} sh -c 'cat /app/config/ztncui.initial-password'"
-  echo "登录后请立即修改管理员密码。"
-}
-
-download_help() {
-  local moon_name
-  moon_name="$(find "$DIST_DIR" -maxdepth 1 -type f -name '*.moon' -exec basename {} \; 2>/dev/null | head -n 1 || true)"
-  echo "planet 和 moon 文件目录：${DIST_DIR}"
-  echo "FILE_KEY=\$(cat ${CONFIG_DIR}/file_server.key)"
-  echo "curl -H \"Authorization: Bearer \${FILE_KEY}\" -o planet http://${HOST_BIND_IP}:${FILE_SERVER_PORT}/planet"
-  if [[ -n "$moon_name" ]]; then
-    echo "curl -H \"Authorization: Bearer \${FILE_KEY}\" -o ${moon_name} http://${HOST_BIND_IP}:${FILE_SERVER_PORT}/${moon_name}"
-  fi
-}
-
-install() {
-  ensure_env
-  load_env
-  validate_env
-  warn_public_http
-  compose up -d
-  info
-}
-
-upgrade() {
-  load_env
-  compose pull
-  compose up -d
-}
-
-info() {
-  load_env
-  if [[ -f "${CONFIG_DIR}/ztncui.port" ]]; then
-    API_PORT="$(tr -d '\r' < "${CONFIG_DIR}/ztncui.port")"
-  fi
-  if [[ -f "${CONFIG_DIR}/file_server.port" ]]; then
-    FILE_SERVER_PORT="$(tr -d '\r' < "${CONFIG_DIR}/file_server.port")"
-  fi
-  echo "管理界面：http://${HOST_BIND_IP}:${API_PORT}"
-  read_initial_password_help
-  download_help
-}
-
 reset_password() {
   load_env
   local password=${1:-}
@@ -177,16 +103,8 @@ reset_password() {
   fi
 }
 
-uninstall() {
-  load_env
-  compose down
-  read -r -p "是否删除 data/zerotier 数据？(y/n) " delete_data
-  if [[ "$delete_data" =~ ^[Yy]$ ]]; then
-    rm -rf -- "$DATA_DIR"
-  fi
-}
-
 doctor() {
+  [[ -f "$ENV_FILE" ]] || { echo ".env missing; copy .env.example first" >&2; exit 1; }
   load_env
   validate_env
   compose config >/dev/null
@@ -201,11 +119,7 @@ usage() {
 Usage: scripts/ztplanet.sh <command>
 
 Commands:
-  install          Create .env if needed and start with Docker Compose
-  upgrade          Pull image and recreate the Compose service
-  info             Show management URL, password and download commands
   reset-password   Reset ztncui admin password; pass a password as argv or omit to generate one
-  uninstall        Stop services and optionally remove data
   doctor           Validate local config and Compose syntax
 EOF
 }
@@ -214,11 +128,7 @@ main() {
   local command=${1:-}
   shift || true
   case "$command" in
-    install) install "$@" ;;
-    upgrade) upgrade "$@" ;;
-    info) info "$@" ;;
     reset-password) reset_password "$@" ;;
-    uninstall) uninstall "$@" ;;
     doctor) doctor "$@" ;;
     -h|--help|help|"") usage ;;
     *) echo "unknown command: $command" >&2; usage; exit 1 ;;
