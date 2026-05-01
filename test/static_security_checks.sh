@@ -82,9 +82,16 @@ reject_match() {
 
 tracked_security_files=(
   Dockerfile
+  .dockerignore
+  compose.yaml
+  .env.example
   deploy.sh
+  scripts/install-zerotier-client.sh
+  scripts/install-zerotier-client.ps1
+  scripts/ztplanet.sh
   patch/entrypoint.sh
   patch/http_server.js
+  patch/ztncui_admin.js
   README.md
   README.en.md
   .github/workflows/image-build.yml
@@ -92,14 +99,110 @@ tracked_security_files=(
 
 docs_and_deploy=(
   deploy.sh
+  scripts/ztplanet.sh
   README.md
   README.en.md
+)
+
+client_install_scripts=(
+  scripts/install-zerotier-client.sh
+  scripts/install-zerotier-client.ps1
 )
 
 for file in "${tracked_security_files[@]}"; do
   require_file "$file"
 done
 require_file test/http_server_security.test.js
+
+require_match \
+  'client one-click scripts use Authorization bearer header for planet downloads' \
+  'Authorization:[[:space:]]*Bearer' \
+  "${client_install_scripts[@]}"
+
+reject_match \
+  'client one-click scripts do not use query-string file-server secrets' \
+  '\?key=' \
+  "${client_install_scripts[@]}"
+
+require_match \
+  'Unix client installer checks for root privileges' \
+  'EUID|id -u' \
+  scripts/install-zerotier-client.sh
+
+require_match \
+  'Windows client installer checks for administrator privileges' \
+  'WindowsPrincipal|Administrator' \
+  scripts/install-zerotier-client.ps1
+
+require_match \
+  'Unix client installer covers Linux ZeroTier data directory' \
+  '/var/lib/zerotier-one/planet' \
+  scripts/install-zerotier-client.sh
+
+require_match \
+  'Unix client installer covers macOS ZeroTier data directory' \
+  '/Library/Application Support/ZeroTier/One/planet' \
+  scripts/install-zerotier-client.sh
+
+require_match \
+  'Windows client installer covers ZeroTier data directory' \
+  'C:\\ProgramData\\ZeroTier\\One\\planet' \
+  scripts/install-zerotier-client.ps1
+
+require_match \
+  'Windows client installer restarts the ZeroTier service' \
+  'ZeroTierOneService' \
+  scripts/install-zerotier-client.ps1
+
+require_match \
+  'Unix client installer restarts Linux ZeroTier through service managers' \
+  'systemctl.*zerotier-one|service.*zerotier-one' \
+  scripts/install-zerotier-client.sh
+
+require_match \
+  'Unix client installer restarts macOS ZeroTier through the LaunchDaemon' \
+  '/Library/LaunchDaemons/com.zerotier.one.plist' \
+  scripts/install-zerotier-client.sh
+
+require_match \
+  'README documents Compose-first install flow' \
+  'docker compose up -d' \
+  README.md
+
+require_match \
+  'English README documents Compose-first install flow' \
+  'docker compose up -d' \
+  README.en.md
+
+require_match \
+  'README links to the actual English document' \
+  'README\.en\.md' \
+  README.md
+
+require_match \
+  'compose binds management UI to localhost by default' \
+  '\$\{HOST_BIND_IP:-127\.0\.0\.1\}:\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' \
+  compose.yaml
+
+require_match \
+  'compose binds file server to localhost by default' \
+  '\$\{HOST_BIND_IP:-127\.0\.0\.1\}:\$\{FILE_SERVER_PORT:-3000\}:\$\{FILE_SERVER_PORT:-3000\}' \
+  compose.yaml
+
+require_match \
+  'env example keeps management and file services local by default' \
+  '^HOST_BIND_IP=127\.0\.0\.1$' \
+  .env.example
+
+require_match \
+  'ztplanet maintenance script exposes reset-password command' \
+  'reset-password' \
+  scripts/ztplanet.sh
+
+require_match \
+  'ztncui admin helper hashes credentials with argon2' \
+  'argon2\.hash' \
+  patch/ztncui_admin.js
 
 reject_match \
   'docs/deploy do not recommend query-string file-server secrets' \
@@ -134,21 +237,63 @@ reject_match \
 reject_legacy_public_default_bindings
 
 require_match \
-  'deploy default host binding helper returns localhost' \
+  'maintenance script default host binding returns localhost' \
   '127\.0\.0\.1' \
-  deploy.sh
+  scripts/ztplanet.sh .env.example compose.yaml
+
+require_match \
+  'maintenance script validates numeric ports from config files' \
+  'validate_port' \
+  scripts/ztplanet.sh
+
+require_match \
+  'maintenance script validates IP address values before compose up' \
+  'validate_ip_value' \
+  scripts/ztplanet.sh
+
+require_match \
+  'compose passes IP_ADDR4 through structured environment' \
+  'IP_ADDR4:[[:space:]]+\$\{IP_ADDR4:-\}' \
+  compose.yaml
+
+require_match \
+  'compose applies no-new-privileges to container runtime' \
+  'no-new-privileges:true' \
+  compose.yaml
+
+require_match \
+  'entrypoint supports documented ztncui password env var' \
+  'ZTNCUI_PASSWORD' \
+  patch/entrypoint.sh
+
+require_match \
+  'entrypoint supports documented ztncui passwd compatibility env var' \
+  'ZTNCUI_PASSWD' \
+  patch/entrypoint.sh
+
+require_match \
+  'entrypoint does not curl IPv6 when IP_ADDR6 is explicitly empty' \
+  'IP_ADDR6\+x' \
+  patch/entrypoint.sh
+
+require_match \
+  'entrypoint tolerates public IP discovery curl failures' \
+  'curl[[:space:]].*\|\|[[:space:]]+true' \
+  patch/entrypoint.sh
 
 require_any_match \
-  'deploy binds management port to localhost by default' \
-  deploy.sh \
+  'compose binds management port to localhost by default' \
+  compose.yaml \
   '127\.0\.0\.1:\$\{?API_PORT\}?:\$\{?API_PORT\}?' \
-  '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?API_PORT\}?:\$\{?API_PORT\}?'
+  '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?API_PORT\}?:\$\{?API_PORT\}?' \
+  '\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*:-127\.0\.0\.1\}?:\$\{?API_PORT'
 
 require_any_match \
-  'deploy binds file-server port to localhost by default' \
-  deploy.sh \
+  'compose binds file-server port to localhost by default' \
+  compose.yaml \
   '127\.0\.0\.1:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?' \
-  '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?'
+  '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?' \
+  '\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*:-127\.0\.0\.1\}?:\$\{?FILE_SERVER_PORT'
 
 require_match \
   'Dockerfile declares a pinned ztncui ref build arg' \
@@ -156,8 +301,53 @@ require_match \
   Dockerfile
 
 require_match \
+  'Dockerfile declares an explicit ZeroTier source ref build arg' \
+  'ARG[[:space:]]+ZEROTIER_REF=' \
+  Dockerfile
+
+require_match \
+  'Dockerfile verifies ZeroTier checkout with git rev-parse' \
+  'test[[:space:]]+"\$\(git[[:space:]]+rev-parse[[:space:]]+HEAD\)"[[:space:]]=' \
+  Dockerfile
+
+reject_match \
+  'Dockerfile uses COPY for local files instead of ADD' \
+  '^[[:space:]]*ADD[[:space:]]+' \
+  Dockerfile
+
+reject_match \
+  'Dockerfile avoids apk update layers when apk add --no-cache is enough' \
+  'apk[[:space:]]+update' \
+  Dockerfile
+
+require_match \
+  'Dockerfile installs runtime dependencies in a named virtual package' \
+  '--virtual[[:space:]]+\.runtime-deps' \
+  Dockerfile
+
+require_match \
+  'Dockerfile removes ztncui git metadata before final image copy' \
+  'rm[[:space:]-]+.*\/app\/ztncui\/\.git' \
+  Dockerfile
+
+require_match \
+  'Dockerfile copies entrypoint in runtime stage to preserve builder cache' \
+  'COPY[[:space:]]+\./patch/entrypoint\.sh[[:space:]]+/app/entrypoint\.sh' \
+  Dockerfile
+
+require_match \
+  'Docker build context ignores git metadata' \
+  '^\.git$' \
+  .dockerignore
+
+require_match \
+  'Docker build context ignores runtime data directory' \
+  '^data$' \
+  .dockerignore
+
+require_match \
   'Dockerfile checks out the pinned ztncui ref' \
-  'git[[:space:]]+checkout[[:space:]]+--detach[[:space:]]+"?\$\{?ZTNCUI_REF\}?"?' \
+  'git[[:space:]]+checkout[[:space:]]+--detach[[:space:]]+"?\$\{?ZTNCUI_COMMIT\}?"?' \
   Dockerfile
 
 require_match \
@@ -169,6 +359,26 @@ require_match \
   'GitHub workflow passes explicit ZTNCUI_REF build arg' \
   'ZTNCUI_REF=' \
   .github/workflows/image-build.yml
+
+require_match \
+  'GitHub workflow passes explicit ZeroTier ref build arg' \
+  'ZEROTIER_REF=' \
+  .github/workflows/image-build.yml
+
+require_match \
+  'local build script passes explicit ZeroTier ref build arg' \
+  '--build-arg[[:space:]]+ZEROTIER_REF=' \
+  build.sh
+
+require_match \
+  'entrypoint generates planet with current zerotier-idtool instead of legacy mkworld' \
+  'zerotier-idtool[[:space:]]+genmoon[[:space:]]+planet\.json' \
+  patch/entrypoint.sh
+
+reject_match \
+  'Dockerfile does not depend on legacy attic/world mkworld sources' \
+  'attic/world|ZEROTIER_WORLD_REF|mkworld' \
+  Dockerfile
 
 require_match \
   'file server supports Authorization bearer header auth' \

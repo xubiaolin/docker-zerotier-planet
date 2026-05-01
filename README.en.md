@@ -1,3 +1,5 @@
+🌐 Languages: [English](README.en.md) | [中文](README.md)
+
 <a href="https://edgeone.ai/?from=github">
   <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="Logo" /> CDN acceleration and security for this project are sponsored by Tencent EdgeOne
 </a>
@@ -41,6 +43,7 @@
   - [3.4 Download the planet File](#34-download-the-planet-file)
   - [3.5 Create a Network](#35-create-a-network)
 - [4. Client Configuration](#4-client-configuration)
+  - [4.0 One-Command Install and planet Replacement](#40-one-command-install-and-planet-replacement)
   - [4.1 Windows](#41-windows)
   - [4.2 Linux](#42-linux)
   - [4.3 Android](#43-android)
@@ -207,34 +210,38 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
-### 3.3 Run the Installer
+### 3.3 Install with Docker Compose
 
 1. **Enter the project directory:**
 ```bash
 cd docker-zerotier-planet
 ```
 
-2. **Run the deployment script:**
+2. **Create and edit the config:**
+```bash
+cp .env.example .env
+vim .env
+```
+
+Set at least one of `IP_ADDR4` or `IP_ADDR6`. The default `HOST_BIND_IP=127.0.0.1` keeps the management UI and file server bound to the host loopback address.
+
+3. **Start the service:**
+```bash
+docker compose up -d
+```
+
+4. **Show access information:**
+```bash
+./scripts/ztplanet.sh info
+```
+
+The old entry point is still available:
+
 ```bash
 ./deploy.sh
 ```
 
-3. **Choose an action:**
-```
-Welcome to the zerotier-planet script. Choose an action:
-1. Install
-2. Uninstall
-3. Update
-4. Show Info
-5. Exit
-Enter a number:
-```
-
-> **Tip:** The script typically completes in 1–3 minutes, depending on your network and hardware.
-
-4. **Successful installation:**
-
-![install-finish](./assets/install_finish.png)
+`deploy.sh` is now a compatibility menu that calls `scripts/ztplanet.sh install|upgrade|info|reset-password|uninstall|doctor` and uses the same `.env` file and data directories as Compose.
 
 ### 3.4 Download the planet File
 
@@ -275,7 +282,7 @@ ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
 - The generated initial password is stored at `./data/zerotier/config/ztncui.initial-password`; change it after first login and store it safely
 
 ```bash
-cat ./data/zerotier/config/ztncui.initial-password
+docker exec myztplanet sh -c 'cat /app/config/ztncui.initial-password'
 ```
 
 > **Security:** Do not use public default management credentials. For public access, prefer the [TLS reverse proxy](#5-tls--reverse-proxy-for-the-management-panel). Public plaintext HTTP is only for temporary lab use and requires an explicit opt-in flag.
@@ -312,7 +319,44 @@ ZeroTier clients are available for:
 - Linux
 - Android
 
+### 4.0 One-Command Install and planet Replacement
+
+On Windows, Linux, and macOS, the client installer scripts can install ZeroTier, download and replace `planet`, restart the ZeroTier service, and optionally run `join` when you pass a network ID.
+
+Read the file-server key on the deployment server first:
+
+```bash
+FILE_KEY=$(cat ./data/zerotier/config/file_server.key)
+```
+
+`PLANET_URL` should normally be an HTTPS reverse-proxy URL, for example `https://files.example.com/planet`. The scripts reject plaintext HTTP by default; use `--allow-insecure-http` or `-AllowInsecureHttp` only for temporary private-lab testing.
+
+**Windows (Administrator PowerShell):**
+
+```powershell
+$PlanetUrl = "https://files.example.com/planet"
+$FileKey = "replace with the contents of ./data/zerotier/config/file_server.key"
+$NetworkId = "replace with your network ID, or omit it"
+$Script = "$env:TEMP\install-zerotier-client.ps1"
+Invoke-WebRequest "https://raw.githubusercontent.com/xubiaolin/docker-zerotier-planet/master/scripts/install-zerotier-client.ps1" -OutFile $Script
+powershell -ExecutionPolicy Bypass -File $Script -PlanetUrl $PlanetUrl -FileKey $FileKey -NetworkId $NetworkId
+```
+
+**Linux/macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xubiaolin/docker-zerotier-planet/master/scripts/install-zerotier-client.sh \
+  | sudo bash -s -- \
+      --planet-url "https://files.example.com/planet" \
+      --file-key "${FILE_KEY}" \
+      --network-id "replace with your network ID, or omit it"
+```
+
+The scripts download `planet` with an `Authorization: Bearer` header and do not put `FILE_KEY` in the URL.
+
 ### 4.1 Windows
+
+The steps below are the manual fallback for troubleshooting or environments where you do not want to run the one-command installer.
 
 #### Step 1: Download the Client
 Download the Windows client from the official ZeroTier website.
@@ -363,6 +407,8 @@ You should see both a `PLANET` and a `LEAF` peer with `DIRECT` links.
 
 ### 4.2 Linux
 
+The steps below are the manual fallback for troubleshooting or environments where you do not want to run the one-command installer.
+
 **Steps:**
 
 1. Install the Linux ZeroTier client
@@ -378,6 +424,8 @@ You should see both a `PLANET` and a `LEAF` peer with `DIRECT` links.
 We recommend the [Unofficial Android Client](https://github.com/kaaass/ZerotierFix).
 
 ### 4.4 macOS
+
+The steps below are the manual fallback for troubleshooting or environments where you do not want to run the one-command installer.
 
 **Steps:**
 
@@ -482,7 +530,16 @@ See [SECURITY.md](./SECURITY.md) for credential rotation, legacy migration, `ztn
 ## 6. Uninstall
 
 ```bash
-docker rm -f zerotier-planet
+./scripts/ztplanet.sh uninstall
+```
+
+Maintenance commands:
+
+```bash
+./scripts/ztplanet.sh upgrade
+./scripts/ztplanet.sh info
+./scripts/ztplanet.sh reset-password
+./scripts/ztplanet.sh doctor
 ```
 
 ---
@@ -517,7 +574,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: Forgot the management password?
-**A:** Run `./deploy.sh` and select the password reset option. Reset generates a new random password and writes it to `./data/zerotier/config/ztncui.initial-password` (expected mode `0600`). It does not restore a public default password.
+**A:** Run `./scripts/ztplanet.sh reset-password`. Reset generates a new random password and writes it to `/app/config/ztncui.initial-password` inside the container, mapped to `./data/zerotier/config/ztncui.initial-password` on the host. It does not restore a public default password.
 
 ### Q7: Can’t connect to PLANET?
 **A:** Check firewalls. If you’re on Alibaba Cloud, Tencent Cloud, etc., open the required ports in the provider console. Also open them on Linux itself (e.g., `ufw`).
@@ -544,38 +601,20 @@ If your peer shows `RELAY`, traffic is being relayed.
 **A:** Yes.
 
 ### Q12: Do you support `docker-compose`?
-**A:** Yes—sample configuration:
+**A:** Yes. The recommended flow uses the repository's `compose.yaml`:
 
-```yaml
-version: '3'
-
-services:
-  myztplanet:
-    image: xubiaolin/zerotier-planet:latest
-    container_name: ztplanet
-    ports:
-      - 9994:9994
-      - 9994:9994/udp
-      # Management UI and file downloads are host-local by default; use a TLS reverse proxy for public access
-      - 127.0.0.1:3443:3443
-      - 127.0.0.1:3000:3000
-    environment:
-      # PUBLIC_HTTP=true is for temporary lab use only; use a TLS reverse proxy for production public access
-      - IP_ADDR4=[IPV4IP ADDRESS]
-      - IP_ADDR6=
-      - ZT_PORT=9994
-      - API_PORT=3443
-      - FILE_SERVER_PORT=3000
-    volumes:
-      - ./data/zerotier/dist:/app/dist
-      - ./data/zerotier/ztncui:/app/ztncui
-      - ./data/zerotier/one:/var/lib/zerotier-one
-      - ./data/zerotier/config:/app/config
-    restart: unless-stopped
+```bash
+cp .env.example .env
+vim .env
+docker compose up -d
 ```
 
-### Q13: Is the ztncui version pinned during builds?
-**A:** Yes. `Dockerfile` pins `ztncui` with `ZTNCUI_REF` to the full commit `1b2284864de48d2dcae22582fff122fe24909c3d` and verifies at build time that `git rev-parse HEAD` equals that value. GitHub Actions passes the same build argument explicitly so builds do not silently follow upstream `master`.
+For temporary lab access over plaintext public HTTP, set both `HOST_BIND_IP=0.0.0.0` and `PUBLIC_HTTP=true`. Production public access should still use a TLS reverse proxy.
+
+### Q13: Are upstream versions pinned during builds?
+**A:** Yes. `Dockerfile` selects the ZeroTier One source with `ZEROTIER_REF` and pins `ztncui` with `ZTNCUI_REF` to the full commit `1b2284864de48d2dcae22582fff122fe24909c3d`. The build logs and verifies the actual checked-out commits. GitHub Actions and the local `build.sh` both pass the ZeroTier build argument explicitly so image tags do not drift away from the source version being built.
+
+New ZeroTier One branches have removed the legacy `attic/world` directory. This project no longer depends on that tree or on `mkworld`; it uses the current `zerotier-idtool genmoon` path with `worldType=planet` to generate the planet world file directly.
 
 To upgrade `ztncui`, review the upstream changes first, then update both the default `ZTNCUI_REF` in `Dockerfile` and the `ZTNCUI_REF` in `.github/workflows/image-build.yml`, and rebuild for verification. The pinned upstream commit does not include `package-lock.json` or `npm-shrinkwrap.json`, so the image still runs `npm install` to resolve npm transitive dependencies; until a reviewed lockfile is added, this remains a known residual reproducibility risk.
 

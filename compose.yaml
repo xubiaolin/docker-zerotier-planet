@@ -1,0 +1,28 @@
+services:
+  ztplanet:
+    image: ${DOCKER_IMAGE:-xubiaolin/zerotier-planet:latest}
+    container_name: ${CONTAINER_NAME:-myztplanet}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      IP_ADDR4: ${IP_ADDR4:-}
+      IP_ADDR6: ${IP_ADDR6:-}
+      ZT_PORT: ${ZT_PORT:-9994}
+      API_PORT: ${API_PORT:-3443}
+      FILE_SERVER_PORT: ${FILE_SERVER_PORT:-3000}
+      PUBLIC_HTTP: ${PUBLIC_HTTP:-false}
+      ZTNCUI_PASSWORD: ${ZTNCUI_PASSWORD:-}
+      ZTNCUI_PASSWD: ${ZTNCUI_PASSWD:-}
+      ZTNCUI_BOOTSTRAP_PASSWORD: ${ZTNCUI_BOOTSTRAP_PASSWORD:-}
+      ZTNCUI_BOOTSTRAP_PASSWORD_FILE: ${ZTNCUI_BOOTSTRAP_PASSWORD_FILE:-}
+    ports:
+      - "${ZT_PORT:-9994}:${ZT_PORT:-9994}"
+      - "${ZT_PORT:-9994}:${ZT_PORT:-9994}/udp"
+      - "${HOST_BIND_IP:-127.0.0.1}:${API_PORT:-3443}:${API_PORT:-3443}"
+      - "${HOST_BIND_IP:-127.0.0.1}:${FILE_SERVER_PORT:-3000}:${FILE_SERVER_PORT:-3000}"
+    volumes:
+      - ./data/zerotier/dist:/app/dist
+      - ./data/zerotier/ztncui:/app/ztncui
+      - ./data/zerotier/one:/var/lib/zerotier-one
+      - ./data/zerotier/config:/app/config

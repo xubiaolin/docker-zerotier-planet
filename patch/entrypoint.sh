@@ -2,7 +2,6 @@
 
 set -eu
 
-# 配置路径和端口
 ZEROTIER_PATH="/var/lib/zerotier-one"
 APP_PATH="/app"
 CONFIG_PATH="${APP_PATH}/config"
@@ -10,166 +9,174 @@ BACKUP_PATH="/bak"
 ZTNCUI_PATH="${APP_PATH}/ztncui"
 ZTNCUI_SRC_PATH="${ZTNCUI_PATH}/src"
 
-# 启动 ZeroTier 和 ztncui
-function start() {
-    echo "Start ztncui and zerotier"
-    cd $ZEROTIER_PATH && ./zerotier-one -p$(cat ${CONFIG_PATH}/zerotier-one.port) -d || exit 1
-    nohup node ${APP_PATH}/http_server.js &> ${APP_PATH}/server.log & 
-    cd $ZTNCUI_SRC_PATH && npm start || exit 1
-}
+HTTP_SERVER_PID=""
+ZEROTIER_PID=""
 
-# 检查文件服务器端口配置文件
-function check_file_server() {
-    if [ ! -f "${CONFIG_PATH}/file_server.port" ]; then
-        echo "file_server.port does not exist, generating it"
-        echo "${FILE_SERVER_PORT}" > ${CONFIG_PATH}/file_server.port
-    else
-        echo "file_server.port exists, reading it"
-        FILE_SERVER_PORT=$(cat ${CONFIG_PATH}/file_server.port)
+cleanup() {
+    if [ -n "${HTTP_SERVER_PID}" ]; then
+        kill "${HTTP_SERVER_PID}" 2>/dev/null || true
     fi
-    echo "${FILE_SERVER_PORT}"
+    if [ -n "${ZEROTIER_PID}" ]; then
+        kill "${ZEROTIER_PID}" 2>/dev/null || true
+    fi
+}
+trap cleanup INT TERM EXIT
+
+write_config() {
+    mkdir -p "${CONFIG_PATH}"
+    printf '%s\n' "${ZT_PORT}" > "${CONFIG_PATH}/zerotier-one.port"
+    printf '%s\n' "${API_PORT}" > "${CONFIG_PATH}/ztncui.port"
 }
 
-# 初始化 ZeroTier 数据
-function init_zerotier_data() {
-    echo "Initializing ZeroTier data"
-    echo "${ZT_PORT}" > ${CONFIG_PATH}/zerotier-one.port
-    cp -r ${BACKUP_PATH}/zerotier-one/* $ZEROTIER_PATH
+read_file_server_port() {
+    mkdir -p "${CONFIG_PATH}"
+    if [ ! -f "${CONFIG_PATH}/file_server.port" ]; then
+        printf '%s\n' "${FILE_SERVER_PORT}" > "${CONFIG_PATH}/file_server.port"
+    else
+        FILE_SERVER_PORT="$(cat "${CONFIG_PATH}/file_server.port")"
+    fi
+    export FILE_SERVER_PORT
+}
 
-    cd $ZEROTIER_PATH
+discover_ips() {
+    if [ -z "${IP_ADDR4+x}" ]; then
+        IP_ADDR4="$(curl -fsS https://ipv4.icanhazip.com/ || true)"
+    fi
+    if [ -z "${IP_ADDR6+x}" ]; then
+        IP_ADDR6="$(curl -fsS https://ipv6.icanhazip.com/ || true)"
+    fi
+
+    IP_ADDR4="$(printf '%s' "${IP_ADDR4:-}" | tr -d '\r\n')"
+    IP_ADDR6="$(printf '%s' "${IP_ADDR6:-}" | tr -d '\r\n')"
+    export IP_ADDR4 IP_ADDR6
+}
+
+stable_endpoints_json() {
+    if [ -n "${IP_ADDR4}" ] && [ -n "${IP_ADDR6}" ]; then
+        printf '["%s/%s","%s/%s"]' "${IP_ADDR4}" "${ZT_PORT}" "${IP_ADDR6}" "${ZT_PORT}"
+    elif [ -n "${IP_ADDR4}" ]; then
+        printf '["%s/%s"]' "${IP_ADDR4}" "${ZT_PORT}"
+    elif [ -n "${IP_ADDR6}" ]; then
+        printf '["%s/%s"]' "${IP_ADDR6}" "${ZT_PORT}"
+    else
+        echo "IP_ADDR4 and IP_ADDR6 are both empty!" >&2
+        exit 1
+    fi
+}
+
+generate_planet() {
+    jq '.worldType = "planet" | .id = "8eac90a"' moon.json > planet.json
+    ./zerotier-idtool genmoon planet.json
+    mv 0000000008eac90a.moon "${APP_PATH}/dist/planet"
+}
+
+init_zerotier_data() {
+    echo "Initializing ZeroTier data"
+    cp -r "${BACKUP_PATH}/zerotier-one/." "${ZEROTIER_PATH}/"
+
+    cd "${ZEROTIER_PATH}"
     openssl rand -hex 16 > authtoken.secret
     ./zerotier-idtool generate identity.secret identity.public
     ./zerotier-idtool initmoon identity.public > moon.json
 
-    IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
-    IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
+    discover_ips
+    printf '%s\n' "${IP_ADDR4}" > "${CONFIG_PATH}/ip_addr4"
+    printf '%s\n' "${IP_ADDR6}" > "${CONFIG_PATH}/ip_addr6"
 
-    echo "IP_ADDR4=$IP_ADDR4"
-    echo "IP_ADDR6=$IP_ADDR6"
-    ZT_PORT=$(cat ${CONFIG_PATH}/zerotier-one.port)
-    echo "ZT_PORT=$ZT_PORT"
+    endpoints="$(stable_endpoints_json)"
+    jq --argjson newEndpoints "${endpoints}" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json
+    mv temp.json moon.json
 
-    if [ -n "$IP_ADDR4" ] && [ -n "$IP_ADDR6" ]; then
-        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\",\"$IP_ADDR6/${ZT_PORT}\"]"
-    elif [ -n "$IP_ADDR4" ]; then
-        stableEndpoints="[\"$IP_ADDR4/${ZT_PORT}\"]"
-    elif [ -n "$IP_ADDR6" ]; then
-        stableEndpoints="[\"$IP_ADDR6/${ZT_PORT}\"]"
-    else
-        echo "IP_ADDR4 and IP_ADDR6 are both empty!"
-        exit 1
-    fi
+    ./zerotier-idtool genmoon moon.json
+    mkdir -p moons.d
+    cp ./*.moon ./moons.d
 
-    echo "$IP_ADDR4" > ${CONFIG_PATH}/ip_addr4
-    echo "$IP_ADDR6" > ${CONFIG_PATH}/ip_addr6
-    echo "stableEndpoints=$stableEndpoints"
-
-    jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json
-    ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
-
-    ./mkworld
-    if [ $? -ne 0 ]; then
-        echo "mkmoonworld failed!"
-        exit 1
-    fi
-
-    mkdir -p ${APP_PATH}/dist/
-    mv world.bin ${APP_PATH}/dist/planet
-    cp *.moon ${APP_PATH}/dist/
+    mkdir -p "${APP_PATH}/dist"
+    generate_planet
+    cp ./*.moon "${APP_PATH}/dist/"
     echo "mkmoonworld success!"
 }
 
-# 检查并初始化 ZeroTier
-function check_zerotier() {
-    mkdir -p $ZEROTIER_PATH
-    if [ "$(ls -A $ZEROTIER_PATH)" ]; then
-        echo "$ZEROTIER_PATH is not empty, starting directly"
+check_zerotier() {
+    mkdir -p "${ZEROTIER_PATH}"
+    if [ "$(ls -A "${ZEROTIER_PATH}")" ]; then
+        echo "${ZEROTIER_PATH} is not empty, starting directly"
     else
         init_zerotier_data
     fi
 }
 
-# 初始化 ztncui 管理员凭据
-function init_ztncui_password() {
-    cd $ZTNCUI_SRC_PATH
-
-    PASSWORD="${ZTNCUI_BOOTSTRAP_PASSWORD:-}"
+resolve_ztncui_password() {
+    PASSWORD="${ZTNCUI_BOOTSTRAP_PASSWORD:-${ZTNCUI_PASSWORD:-${ZTNCUI_PASSWD:-}}}"
     if [ -n "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE:-}" ]; then
         if [ ! -f "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE}" ]; then
-            echo "ZTNCUI_BOOTSTRAP_PASSWORD_FILE does not exist"
+            echo "ZTNCUI_BOOTSTRAP_PASSWORD_FILE does not exist" >&2
             exit 1
         fi
-        PASSWORD=$(cat "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE}")
+        PASSWORD="$(cat "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE}")"
     fi
 
     if [ -z "${PASSWORD}" ]; then
-        PASSWORD=$(openssl rand -base64 24 | tr -d '\n')
+        PASSWORD="$(openssl rand -base64 24 | tr -d '\n')"
         umask 077
-        printf '%s\n' "${PASSWORD}" > ${CONFIG_PATH}/ztncui.initial-password
-        chmod 600 ${CONFIG_PATH}/ztncui.initial-password
+        printf '%s\n' "${PASSWORD}" > "${CONFIG_PATH}/ztncui.initial-password"
+        chmod 600 "${CONFIG_PATH}/ztncui.initial-password"
         echo "Generated a unique ztncui credential; retrieve it from /app/config/ztncui.initial-password"
     else
-        rm -f ${CONFIG_PATH}/ztncui.initial-password
+        rm -f "${CONFIG_PATH}/ztncui.initial-password"
         echo "Using operator-provided ztncui bootstrap password"
     fi
+    export PASSWORD
+}
 
-    ZTNCUI_ADMIN_PASSWORD="${PASSWORD}" node <<'NODE'
-const fs = require('fs');
-const argon2 = require('argon2');
-
-(async () => {
-  const password = process.env.ZTNCUI_ADMIN_PASSWORD || '';
-  if (!password) {
-    throw new Error('empty ztncui credential');
-  }
-  const hash = await argon2.hash(password, { type: argon2.argon2i });
-  const users = {
-    admin: {
-      name: 'admin',
-      pass_set: true,
-      hash,
-    },
-  };
-  fs.writeFileSync('etc/passwd', JSON.stringify(users));
-})().catch((err) => {
-  console.error(err.message);
-  process.exit(1);
-});
-NODE
+init_ztncui_password() {
+    resolve_ztncui_password
+    ZTNCUI_ADMIN_PASSWORD="${PASSWORD}" node "${APP_PATH}/ztncui_admin.js"
     unset PASSWORD ZTNCUI_ADMIN_PASSWORD
 }
 
-# 初始化 ztncui 数据
-function init_ztncui_data() {
+init_ztncui_data() {
     echo "Initializing ztncui data"
-    cp -r ${BACKUP_PATH}/ztncui/* $ZTNCUI_PATH
+    cp -r "${BACKUP_PATH}/ztncui/." "${ZTNCUI_PATH}/"
 
-    echo "Configuring ztncui"
-    mkdir -p ${CONFIG_PATH}
-    echo "${API_PORT}" > ${CONFIG_PATH}/ztncui.port
-    cd $ZTNCUI_SRC_PATH
-    echo "HTTP_PORT=${API_PORT}" > .env
-    echo 'NODE_ENV=production' >> .env
-    echo "HTTP_ALL_INTERFACES=${ZTNCUI_HTTP_ALL_INTERFACES:-true}" >> .env
-    echo "ZT_ADDR=localhost:${ZT_PORT}" >> .env
+    cd "${ZTNCUI_SRC_PATH}"
+    {
+        echo "HTTP_PORT=${API_PORT}"
+        echo 'NODE_ENV=production'
+        echo "HTTP_ALL_INTERFACES=${ZTNCUI_HTTP_ALL_INTERFACES:-true}"
+        echo "ZT_ADDR=localhost:${ZT_PORT}"
+        echo "ZT_TOKEN=$(cat "${ZEROTIER_PATH}/authtoken.secret")"
+    } > .env
     init_ztncui_password
-    TOKEN=$(cat ${ZEROTIER_PATH}/authtoken.secret)
-    echo "ZT_TOKEN=$TOKEN" >> .env
     echo "ztncui configuration successful!"
 }
 
-# 检查并初始化 ztncui
-function check_ztncui() {
-    mkdir -p $ZTNCUI_PATH
-    if [ "$(ls -A $ZTNCUI_PATH)" ]; then
-        echo "${API_PORT}" > ${CONFIG_PATH}/ztncui.port
-        echo "$ZTNCUI_PATH is not empty, starting directly"
+check_ztncui() {
+    mkdir -p "${ZTNCUI_PATH}"
+    if [ "$(ls -A "${ZTNCUI_PATH}")" ]; then
+        printf '%s\n' "${API_PORT}" > "${CONFIG_PATH}/ztncui.port"
+        echo "${ZTNCUI_PATH} is not empty, starting directly"
     else
         init_ztncui_data
     fi
 }
 
-check_file_server
+start_services() {
+    echo "Start ztncui and zerotier"
+    cd "${ZEROTIER_PATH}"
+    ./zerotier-one -p"$(cat "${CONFIG_PATH}/zerotier-one.port")" -d &
+    ZEROTIER_PID="$!"
+
+    node "${APP_PATH}/http_server.js" > "${APP_PATH}/server.log" 2>&1 &
+    HTTP_SERVER_PID="$!"
+
+    cd "${ZTNCUI_SRC_PATH}"
+    npm start &
+    wait "$!"
+}
+
+read_file_server_port
+write_config
 check_zerotier
 check_ztncui
-start
+start_services

@@ -1,4 +1,4 @@
-🌐 Languages: [English](README.md) | [中文](README.zh.md)
+🌐 Languages: [English](README.en.md) | [中文](README.md)
 
 <a href="https://edgeone.ai/?from=github">
   <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="Logo" /> 本项目的 CDN 加速和安全保护由腾讯 EdgeOne 赞助
@@ -44,6 +44,7 @@
   - [3.4 下载 planet 文件](#34-下载-planet-文件)
   - [3.5 新建网络](#35-新建网络)
 - [4. 客户端配置](#4-客户端配置)
+  - [4.0 一键安装与替换 planet](#40-一键安装与替换-planet)
   - [4.1 Windows 配置](#41-windows-配置)
   - [4.2 Linux 客户端](#42-linux-客户端)
   - [4.3 安卓客户端配置](#43-安卓客户端配置)
@@ -213,34 +214,38 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 git clone https://ghproxy.imoyuapp.win/github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
-### 3.3 执行安装脚本
+### 3.3 使用 Docker Compose 安装
 
 1. **进入项目目录：**
 ```bash
 cd docker-zerotier-planet
 ```
 
-2. **运行部署脚本：**
+2. **创建并编辑配置：**
+```bash
+cp .env.example .env
+vim .env
+```
+
+至少设置 `IP_ADDR4` 或 `IP_ADDR6`。默认 `HOST_BIND_IP=127.0.0.1`，管理界面和文件服务只绑定宿主机本机地址。
+
+3. **启动服务：**
+```bash
+docker compose up -d
+```
+
+4. **查看访问信息：**
+```bash
+./scripts/ztplanet.sh info
+```
+
+兼容旧入口仍可使用：
+
 ```bash
 ./deploy.sh
 ```
 
-3. **根据提示选择操作：**
-```
-欢迎使用 zerotier-planet 脚本，请选择需要执行的操作：
-1. 安装
-2. 卸载
-3. 更新
-4. 查看信息
-5. 退出
-请输入数字：
-```
-
-> **提示**：整个脚本预计需要 1-3 分钟，具体时间取决于网络与机型
-
-4. **安装成功标志：**
-
-![install-finish](./assets/install_finish.png)
+`deploy.sh` 现在只是菜单层，内部调用 `scripts/ztplanet.sh install|upgrade|info|reset-password|uninstall|doctor`，和 Compose 使用同一套 `.env` 与数据目录。
 
 ### 3.4 下载 planet 文件
 
@@ -281,7 +286,7 @@ ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
 - 生成的初始密码保存在 `./data/zerotier/config/ztncui.initial-password`，建议首次登录后立即修改并妥善保存
 
 ```bash
-cat ./data/zerotier/config/ztncui.initial-password
+docker exec myztplanet sh -c 'cat /app/config/ztncui.initial-password'
 ```
 
 > **安全提示**：不要再使用公开默认管理凭据。如果确实需要把管理界面暴露到公网，请优先使用 [TLS 反向代理](#5-管理面板-tls反向代理配置)；公网明文 HTTP 仅适合临时实验环境，并需要显式开启相应公开访问开关。
@@ -317,7 +322,44 @@ ZeroTier 支持多种主流操作系统的客户端，包括：
 - Linux
 - Android
 
+### 4.0 一键安装与替换 planet
+
+Windows、Linux、macOS 可以使用仓库内的一键脚本自动完成 ZeroTier 安装、下载并替换 `planet`、重启服务；传入网络 ID 时还会自动执行 `join`。
+
+先在部署服务器上读取文件服务密钥：
+
+```bash
+FILE_KEY=$(cat ./data/zerotier/config/file_server.key)
+```
+
+`PLANET_URL` 建议使用已经配置好 TLS 的 HTTPS 反向代理地址，例如 `https://files.example.com/planet`。脚本默认拒绝明文 HTTP；仅临时内网测试时才使用 `--allow-insecure-http` 或 `-AllowInsecureHttp`。
+
+**Windows（管理员 PowerShell）：**
+
+```powershell
+$PlanetUrl = "https://files.example.com/planet"
+$FileKey = "替换为 ./data/zerotier/config/file_server.key 的内容"
+$NetworkId = "替换为网络 ID，可不传"
+$Script = "$env:TEMP\install-zerotier-client.ps1"
+Invoke-WebRequest "https://raw.githubusercontent.com/xubiaolin/docker-zerotier-planet/master/scripts/install-zerotier-client.ps1" -OutFile $Script
+powershell -ExecutionPolicy Bypass -File $Script -PlanetUrl $PlanetUrl -FileKey $FileKey -NetworkId $NetworkId
+```
+
+**Linux/macOS：**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xubiaolin/docker-zerotier-planet/master/scripts/install-zerotier-client.sh \
+  | sudo bash -s -- \
+      --planet-url "https://files.example.com/planet" \
+      --file-key "${FILE_KEY}" \
+      --network-id "替换为网络 ID，可不传"
+```
+
+下载 `planet` 时脚本使用 `Authorization: Bearer` 请求头，不会把 `FILE_KEY` 放进 URL。
+
 ### 4.1 Windows 配置
+
+以下是手动配置步骤，适合排障或不希望使用一键脚本的场景。
 
 #### 步骤 1：下载客户端
 首先去 ZeroTier 官网下载一个 ZeroTier 客户端
@@ -370,6 +412,8 @@ PS C:\Windows\system32>
 
 ### 4.2 Linux 客户端
 
+以下是手动配置步骤，适合排障或不希望使用一键脚本的场景。
+
 **配置步骤：**
 
 1. 安装 Linux 客户端软件
@@ -385,6 +429,8 @@ PS C:\Windows\system32>
 推荐使用 [Zerotier 非官方安卓客户端](https://github.com/kaaass/ZerotierFix)
 
 ### 4.4 MacOS 客户端配置
+
+以下是手动配置步骤，适合排障或不希望使用一键脚本的场景。
 
 **配置步骤：**
 
@@ -489,7 +535,16 @@ curl -H "Authorization: Bearer ${FILE_KEY}" https://files.{CUSTOM_DOMAIN}/planet
 ## 6. 卸载
 
 ```bash
-docker rm -f zerotier-planet
+./scripts/ztplanet.sh uninstall
+```
+
+升级与维护命令：
+
+```bash
+./scripts/ztplanet.sh upgrade
+./scripts/ztplanet.sh info
+./scripts/ztplanet.sh reset-password
+./scripts/ztplanet.sh doctor
 ```
 
 ---
@@ -526,7 +581,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: 管理后台忘记密码怎么办？
-**A:** 执行 `./deploy.sh`，选择重置密码。重置后会生成新的随机密码，并写入 `./data/zerotier/config/ztncui.initial-password`（权限应为 `0600`）。不会恢复为公开默认密码。
+**A:** 执行 `./scripts/ztplanet.sh reset-password`。重置后会生成新的随机密码，并写入容器内 `/app/config/ztncui.initial-password`（宿主机对应 `./data/zerotier/config/ztncui.initial-password`，权限应为 `0600`）。不会恢复为公开默认密码。
 
 ### Q7: 为什么连不上 planet？
 **A:** 请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。Linux 机器上也要放行，如果安装了 ufw 等防火墙工具。
@@ -553,38 +608,20 @@ ab403e2074 1.10.2 LEAF      -1 RELAY
 **A:** 可以
 
 ### Q12: 支持 docker-compose 启动部署吗？
-**A:** 支持，参考 docker-compose 文件如下：
+**A:** 支持，并且现在推荐直接使用仓库内的 `compose.yaml`：
 
-```yaml
-version: '3'
-
-services:
-  myztplanet:
-    image: xubiaolin/zerotier-planet:latest
-    container_name: ztplanet
-    ports:
-      - 9994:9994
-      - 9994:9994/udp
-      # 管理界面和文件下载服务默认仅绑定本机；公网访问请使用 TLS 反向代理
-      - 127.0.0.1:3443:3443
-      - 127.0.0.1:3000:3000
-    environment:
-      # PUBLIC_HTTP=true 仅适合临时实验环境；生产公网访问请使用 TLS 反向代理
-      - IP_ADDR4=[IPV4IP ADDRESS]
-      - IP_ADDR6=
-      - ZT_PORT=9994
-      - API_PORT=3443
-      - FILE_SERVER_PORT=3000
-    volumes:
-      - ./data/zerotier/dist:/app/dist
-      - ./data/zerotier/ztncui:/app/ztncui
-      - ./data/zerotier/one:/var/lib/zerotier-one
-      - ./data/zerotier/config:/app/config
-    restart: unless-stopped
+```bash
+cp .env.example .env
+vim .env
+docker compose up -d
 ```
 
-### Q13: 构建时是否锁定 ztncui 版本？
-**A:** 是。`Dockerfile` 通过 `ZTNCUI_REF` 固定 `ztncui` 到完整提交 `1b2284864de48d2dcae22582fff122fe24909c3d`，并在构建时校验 `git rev-parse HEAD` 必须等于该值；GitHub Actions 也显式传入同一个构建参数，避免默认跟随上游 `master` 漂移。
+如果只是临时实验需要公网明文访问管理界面和文件服务，可同时设置 `HOST_BIND_IP=0.0.0.0` 与 `PUBLIC_HTTP=true`。生产公网访问仍推荐 TLS 反向代理。
+
+### Q13: 构建时是否锁定上游版本？
+**A:** 是。`Dockerfile` 通过 `ZEROTIER_REF` 指定 ZeroTier One 源码引用，并通过 `ZTNCUI_REF` 固定 `ztncui` 到完整提交 `1b2284864de48d2dcae22582fff122fe24909c3d`；构建时会输出并校验实际 checkout 的提交。GitHub Actions 和本地 `build.sh` 都会显式传入 ZeroTier 构建参数，避免自动构建时镜像标签和源码版本脱节。
+
+ZeroTier One 新分支已移除 legacy `attic/world` 目录。本项目不再依赖该目录构建 `mkworld`，而是直接使用当前 `zerotier-idtool genmoon` 根据 `worldType=planet` 生成 planet world 文件。
 
 如需升级 `ztncui`，请先审查上游变更，再同步更新 `Dockerfile` 默认 `ZTNCUI_REF` 和 `.github/workflows/image-build.yml` 中的 `ZTNCUI_REF`，然后重新构建验证。当前上游固定提交不包含 `package-lock.json`/`npm-shrinkwrap.json`，镜像仍会执行 `npm install` 解析 npm 传递依赖；在引入经审查的锁文件前，这仍是已知的剩余可复现性风险。
 

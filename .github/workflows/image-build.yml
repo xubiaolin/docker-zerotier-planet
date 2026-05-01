@@ -1,6 +1,7 @@
 name: Docker Build on ZeroTier
 
 env:
+  ZEROTIER_REPO: https://github.com/zerotier/ZeroTierOne.git
   ZTNCUI_REF: 1b2284864de48d2dcae22582fff122fe24909c3d
 
 on:
@@ -21,7 +22,7 @@ jobs:
       - name: Get latest ZeroTier tag
         id: get_tag
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/zerotier/ZeroTierOne/tags | jq -r '.[0].name')
+          LATEST_TAG=$(curl -s https://api.github.com/repos/zerotier/ZeroTierOne/tags | jq -r '.[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
           echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
 
@@ -44,4 +45,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:${{ steps.get_tag.outputs.latest_tag }}
           build-args: |
             TAG=${{ steps.get_tag.outputs.latest_tag }}
+            ZEROTIER_REPO=${{ env.ZEROTIER_REPO }}
+            ZEROTIER_REF=${{ steps.get_tag.outputs.latest_tag }}
             ZTNCUI_REF=${{ env.ZTNCUI_REF }}

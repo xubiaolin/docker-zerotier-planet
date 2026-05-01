@@ -14,5 +14,15 @@ if [ "$latest_tag" == "$latest_docker_tag" ]; then
 fi
 
 echo "Latest tag for $USER/$REPO matching latest is: $latest_tag"
-docker buildx build --platform linux/arm64,linux/amd64 -t "$DOCKER_IMAGE":latest --push .
-docker buildx build --platform linux/arm64,linux/amd64 -t "${DOCKER_IMAGE}:${latest_tag}" --push .
+docker buildx build \
+    --platform linux/arm64,linux/amd64 \
+    --build-arg TAG="$latest_tag" \
+    --build-arg ZEROTIER_REF="$latest_tag" \
+    -t "$DOCKER_IMAGE":latest \
+    --push .
+docker buildx build \
+    --platform linux/arm64,linux/amd64 \
+    --build-arg TAG="$latest_tag" \
+    --build-arg ZEROTIER_REF="$latest_tag" \
+    -t "${DOCKER_IMAGE}:${latest_tag}" \
+    --push .

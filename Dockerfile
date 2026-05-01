@@ -1,92 +1,102 @@
-FROM alpine:3.14 AS builder
+FROM alpine:3.20 AS builder
+
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
 ENV TZ=Asia/Shanghai
-ARG TAG=actions
+ARG TAG=main
+ARG ZEROTIER_REPO=https://github.com/zerotier/ZeroTierOne.git
+ARG ZEROTIER_REF=main
 ARG ZTNCUI_REPO=https://github.com/key-networks/ztncui.git
 ARG ZTNCUI_REF=1b2284864de48d2dcae22582fff122fe24909c3d
-ENV TAG=${TAG}
-
-WORKDIR /app
-ADD ./patch/entrypoint.sh /app/entrypoint.sh
-ADD ./patch/http_server.js /app/http_server.js
-ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
-
-# init tool
-RUN set -x\
-    && apk update\
-    && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake go \
-    && echo "env prepare success!"
-
-# make zerotier-one
-RUN set -x\
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
-    && source "$HOME/.cargo/env"\
-    && git clone https://github.com/zerotier/ZeroTierOne.git\
-    && cd ZeroTierOne\
-    && git checkout ${TAG}\
-    && echo "切换到tag:${TAG}"\
-    && make ZT_SYMLINK=1 \
-    && make -j\
-    && make install\
-    && echo "make success!"\
-    && zerotier-one -d || true\
-    && sleep 5s\
-    && (ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 || true)\
-    && echo "zerotier-one init success!"\
-    && cd /app/ZeroTierOne/attic/world \
-    && cp /app/patch/mkworld_custom.cpp .\
-    && mv mkworld.cpp mkworld.cpp.bak \
-    && mv mkworld_custom.cpp mkworld.cpp \
-    && sh build.sh \
-    && mkdir -p /var/lib/zerotier-one \
-    && mv mkworld /var/lib/zerotier-one\
-    && echo "mkworld build success!"
-
-
-
-# make ztncui from an explicit, verified source commit.
-# Keep ZTNCUI_REF as a full commit SHA so builds cannot silently track moving upstream HEAD.
-RUN set -x \
-    && mkdir /app -p \
-    && cd /app \
-    && git clone --progress "${ZTNCUI_REPO}" ztncui\
-    && cd /app/ztncui \
-    && git checkout --detach "${ZTNCUI_REF}" \
-    && test "$(git rev-parse HEAD)" = "${ZTNCUI_REF}" \
-    && echo "Using ztncui commit: $(git rev-parse HEAD)" \
-    && cd /app/ztncui/src \
-    && npm config set registry https://registry.npmmirror.com\
-    && npm install -g node-gyp\
-    && npm install 
-
-FROM alpine:3.14
 
 WORKDIR /app
 
-ENV IP_ADDR4=''
-ENV IP_ADDR6=''
+RUN set -eux; \
+    apk add --no-cache --virtual .build-deps \
+        build-base \
+        cmake \
+        curl \
+        g++ \
+        gcc \
+        git \
+        go \
+        jq \
+        linux-headers \
+        make \
+        nodejs \
+        npm \
+        openssl-dev \
+        pkgconfig \
+        python3
 
-ENV ZT_PORT=9994
-ENV API_PORT=3443
-ENV FILE_SERVER_PORT=3000
+# Build ZeroTier from an explicit ref. TAG is kept for backward-compatible
+# build arguments; release builds should pass ZEROTIER_REF directly.
+RUN set -eux; \
+    if [ "${ZEROTIER_REF}" = "main" ] && [ "${TAG}" != "main" ]; then \
+        ZEROTIER_REF="${TAG}"; \
+    fi; \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; \
+    . "$HOME/.cargo/env"; \
+    git clone "${ZEROTIER_REPO}" ZeroTierOne; \
+    cd ZeroTierOne; \
+    ZEROTIER_COMMIT="$(git rev-parse --verify "${ZEROTIER_REF}^{commit}" 2>/dev/null || git rev-parse --verify "origin/${ZEROTIER_REF}^{commit}")"; \
+    git checkout --detach "${ZEROTIER_COMMIT}"; \
+    test "$(git rev-parse HEAD)" = "$(git rev-parse --verify HEAD)"; \
+    echo "Using ZeroTier ref ${ZEROTIER_REF}: $(git rev-parse HEAD)"; \
+    make ZT_SYMLINK=1; \
+    make -j"$(nproc)"; \
+    make install; \
+    zerotier-one -d || true; \
+    sleep 5s; \
+    pkill -9 zerotier-one || true
 
-ENV GH_MIRROR="https://mirror.ghproxy.com/"
-ENV FILE_KEY=''
-ENV TZ=Asia/Shanghai
+# Build ztncui from an explicit, verified source commit.
+RUN set -eux; \
+    git clone --progress "${ZTNCUI_REPO}" ztncui; \
+    cd /app/ztncui; \
+    ZTNCUI_COMMIT="$(git rev-parse --verify "${ZTNCUI_REF}^{commit}" 2>/dev/null || git rev-parse --verify "origin/${ZTNCUI_REF}^{commit}")"; \
+    git checkout --detach "${ZTNCUI_COMMIT}"; \
+    test "$(git rev-parse HEAD)" = "${ZTNCUI_REF}"; \
+    echo "Using ztncui commit: $(git rev-parse HEAD)"; \
+    cd /app/ztncui/src; \
+    npm config set registry https://registry.npmmirror.com; \
+    npm install --global node-gyp; \
+    npm install; \
+    npm cache clean --force; \
+    rm -rf /app/ztncui/.git /root/.npm
+
+FROM alpine:3.20
+
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+
+WORKDIR /app
+
+ENV API_PORT=3443 \
+    FILE_KEY='' \
+    FILE_SERVER_PORT=3000 \
+    GH_MIRROR="https://mirror.ghproxy.com/" \
+    IP_ADDR4='' \
+    IP_ADDR6='' \
+    TZ=Asia/Shanghai \
+    ZT_PORT=9994
 
 COPY --from=builder /app/ztncui /bak/ztncui
 COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
-COPY --from=builder /app/http_server.js /app/http_server.js
+COPY ./patch/entrypoint.sh /app/entrypoint.sh
+COPY ./patch/http_server.js /app/http_server.js
+COPY ./patch/ztncui_admin.js /app/ztncui_admin.js
 
-RUN set -x \
-    && apk update \
-    && apk add --no-cache npm curl jq openssl\
-    && mkdir /app/config -p 
+RUN set -eux; \
+    apk add --no-cache --virtual .runtime-deps \
+        curl \
+        jq \
+        nodejs \
+        npm \
+        openssl; \
+    mkdir -p /app/config
 
-
-VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
+VOLUME ["/app/dist", "/app/ztncui", "/var/lib/zerotier-one", "/app/config"]
 
 CMD ["/bin/sh","/app/entrypoint.sh"]
