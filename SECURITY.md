@@ -7,7 +7,7 @@ This project is intended to be secure by default for fresh self-hosted deploymen
 - Recommended deployments start from `.env.example`, then run `docker compose up -d`.
 - `compose.yaml` binds the management UI and file server to `127.0.0.1` by default through `HOST_BIND_IP=127.0.0.1`. Keep this default unless you are placing a TLS reverse proxy or SSH tunnel in front of the services.
 - The management UI username defaults to `admin` unless `ZTNCUI_USER` is set.
-- The management password is no longer a public default. Set `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` explicitly, or let the installer generate a random password.
+- The management password is no longer a public default. Set `ZTNCUI_BOOTSTRAP_PASSWORD` or `ZTNCUI_BOOTSTRAP_PASSWORD_FILE` explicitly, or let the installer generate a random password.
 - Generated credentials are written to `/app/config/ztncui.initial-password` in the container, mapped to `./data/zerotier/config/ztncui.initial-password` on the host, with restrictive permissions. Read it locally and rotate it after first login:
 
   ```bash
@@ -58,7 +58,7 @@ Builds select ZeroTier One with `ZEROTIER_REF` and pin `ztncui` with `ZTNCUI_REF
 - 推荐部署流程是复制 `.env.example` 为 `.env`，再执行 `docker compose up -d`。
 - `compose.yaml` 默认通过 `HOST_BIND_IP=127.0.0.1` 将管理界面和文件服务绑定到宿主机本机地址。除非前面有 TLS 反向代理或 SSH 隧道，否则不要改为公网绑定。
 - 管理界面用户名默认是 `admin`，可通过 `ZTNCUI_USER` 修改。
-- 管理密码不再使用公开默认值。可以通过 `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` 指定；未指定时容器首次启动会生成随机密码。
+- 管理密码不再使用公开默认值。可以通过 `ZTNCUI_BOOTSTRAP_PASSWORD` 或 `ZTNCUI_BOOTSTRAP_PASSWORD_FILE` 指定；未指定时容器首次启动会生成随机密码。
 - 生成的初始密码保存在容器内 `/app/config/ztncui.initial-password`，宿主机路径为 `./data/zerotier/config/ztncui.initial-password`，应只在本机读取，并在首次登录后立即修改。
 
 ### 密码重置与旧版本迁移

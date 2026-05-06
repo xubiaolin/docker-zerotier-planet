@@ -261,13 +261,13 @@ require_match \
   compose.yaml
 
 require_match \
-  'entrypoint supports documented ztncui password env var' \
-  'ZTNCUI_PASSWORD' \
+  'entrypoint supports documented ztncui bootstrap password env var' \
+  'ZTNCUI_BOOTSTRAP_PASSWORD' \
   patch/entrypoint.sh
 
 require_match \
-  'entrypoint supports documented ztncui passwd compatibility env var' \
-  'ZTNCUI_PASSWD' \
+  'entrypoint supports documented ztncui bootstrap password file env var' \
+  'ZTNCUI_BOOTSTRAP_PASSWORD_FILE' \
   patch/entrypoint.sh
 
 require_match \

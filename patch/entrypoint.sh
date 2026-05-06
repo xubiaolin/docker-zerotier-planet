@@ -107,7 +107,7 @@ check_zerotier() {
 }
 
 resolve_ztncui_password() {
-    PASSWORD="${ZTNCUI_BOOTSTRAP_PASSWORD:-${ZTNCUI_PASSWORD:-${ZTNCUI_PASSWD:-}}}"
+    PASSWORD="${ZTNCUI_BOOTSTRAP_PASSWORD:-}"
     if [ -n "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE:-}" ]; then
         if [ ! -f "${ZTNCUI_BOOTSTRAP_PASSWORD_FILE}" ]; then
             echo "ZTNCUI_BOOTSTRAP_PASSWORD_FILE does not exist" >&2

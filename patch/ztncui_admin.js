@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 let argon2;
 
 try {
@@ -9,7 +8,7 @@ try {
 }
 
 function readPassword() {
-  const passwordFile = process.env.ZTNCUI_ADMIN_PASSWORD_FILE || process.env.ZTNCUI_RESET_PASSWORD_FILE || '';
+  const passwordFile = process.env.ZTNCUI_ADMIN_PASSWORD_FILE || '';
   if (passwordFile) {
     return fs.readFileSync(passwordFile, 'utf8').replace(/\r?\n$/, '');
   }
@@ -22,7 +21,6 @@ async function main() {
     throw new Error('empty ztncui credential');
   }
 
-  const passwdPath = process.env.ZTNCUI_PASSWD_PATH || '/app/ztncui/src/etc/passwd';
   const hash = await argon2.hash(password, { type: argon2.argon2i });
   const users = {
     admin: {
@@ -32,8 +30,8 @@ async function main() {
     },
   };
 
-  fs.mkdirSync(path.dirname(passwdPath), { recursive: true });
-  fs.writeFileSync(passwdPath, JSON.stringify(users));
+  fs.mkdirSync('/app/ztncui/src/etc', { recursive: true });
+  fs.writeFileSync('/app/ztncui/src/etc/passwd', JSON.stringify(users));
 }
 
 main().catch((err) => {

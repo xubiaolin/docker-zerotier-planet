@@ -275,7 +275,7 @@ ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
 
 **登录信息：**
 - 用户名默认是 `admin`（可通过 `ZTNCUI_USER` 修改）
-- 密码不再使用公开默认值；如未通过 `ZTNCUI_PASSWORD`/`ZTNCUI_PASSWD` 指定，容器首次启动时会生成随机密码
+- 密码不再使用公开默认值；如未通过 `ZTNCUI_BOOTSTRAP_PASSWORD` 或 `ZTNCUI_BOOTSTRAP_PASSWORD_FILE` 指定，容器首次启动时会生成随机密码
 - 生成的初始密码保存在 `./data/zerotier/config/ztncui.initial-password`，建议首次登录后立即修改并妥善保存
 
 ```bash

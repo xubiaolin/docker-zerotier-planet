@@ -271,7 +271,7 @@ ssh -L 3443:127.0.0.1:3443 <user>@<server-ip>
 
 **Login credentials:**
 - The default username is `admin` (override with `ZTNCUI_USER`)
-- The password is no longer a public default; if `ZTNCUI_PASSWORD` / `ZTNCUI_PASSWD` is not provided, the container generates a random password on first start
+- The password is no longer a public default; if `ZTNCUI_BOOTSTRAP_PASSWORD` or `ZTNCUI_BOOTSTRAP_PASSWORD_FILE` is not provided, the container generates a random password on first start
 - The generated initial password is stored at `./data/zerotier/config/ztncui.initial-password`; change it after first login and store it safely
 
 ```bash
