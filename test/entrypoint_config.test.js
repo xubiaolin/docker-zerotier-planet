@@ -127,6 +127,68 @@ test('existing ztncui .env is refreshed when API_PORT or ZT_PORT changes', () =>
     assert.match(envText, /^ZT_TOKEN=current-token$/m);
 });
 
+test('existing ztncui .env keeps unmanaged settings when managed values refresh', () => {
+    const fixture = makeFixture();
+    createExistingZeroTier(fixture);
+    createExistingZtncui(
+        fixture,
+        [
+            'HTTPS_PORT=9443',
+            'HTTP_PORT=3443',
+            'NODE_ENV=production',
+            'HTTPS_HOST=0.0.0.0',
+            'HTTP_ALL_INTERFACES=true',
+            'ZT_ADDR=localhost:9994',
+            'ZT_TOKEN=old-token',
+            '',
+        ].join('\n')
+    );
+
+    runEntrypoint(fixture);
+
+    const envText = fs.readFileSync(path.join(fixture.appPath, 'ztncui', 'src', '.env'), 'utf8');
+    assert.match(envText, /^HTTPS_PORT=9443$/m);
+    assert.match(envText, /^HTTPS_HOST=0\.0\.0\.0$/m);
+    assert.match(envText, /^HTTP_PORT=4444$/m);
+    assert.match(envText, /^ZT_ADDR=localhost:12345$/m);
+    assert.match(envText, /^ZT_TOKEN=current-token$/m);
+});
+
+test('existing world files reuse saved IP addresses when Compose passes blank IP env vars', () => {
+    const fixture = makeFixture();
+    createExistingZeroTier(fixture);
+    createExistingZtncui(fixture);
+    fs.writeFileSync(path.join(fixture.appPath, 'config', 'ip_addr4'), '203.0.113.10\n');
+    fs.writeFileSync(path.join(fixture.appPath, 'config', 'ip_addr6'), '\n');
+    fs.mkdirSync(path.join(fixture.appPath, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(fixture.appPath, 'dist', 'planet'), 'old-planet\n');
+
+    runEntrypoint(fixture, { IP_ADDR4: '', IP_ADDR6: '' });
+
+    const moonJson = JSON.parse(fs.readFileSync(path.join(fixture.zeroTierPath, 'moon.json'), 'utf8'));
+    assert.deepEqual(moonJson.roots[0].stableEndpoints, ['203.0.113.10/12345']);
+    assert.equal(fs.readFileSync(path.join(fixture.appPath, 'config', 'ip_addr4'), 'utf8'), '203.0.113.10\n');
+});
+
+test('existing ZeroTier port is preserved when Compose supplies the default port', () => {
+    const fixture = makeFixture();
+    createExistingZeroTier(fixture, {
+        worldType: 'moon',
+        id: '1',
+        roots: [{ stableEndpoints: ['203.0.113.10/23456'] }],
+    });
+    createExistingZtncui(fixture);
+    fs.writeFileSync(path.join(fixture.appPath, 'config', 'zerotier-one.port'), '23456\n');
+
+    runEntrypoint(fixture, { ZT_PORT: '9994', IP_ADDR4: '203.0.113.10', IP_ADDR6: '' });
+
+    const moonJson = JSON.parse(fs.readFileSync(path.join(fixture.zeroTierPath, 'moon.json'), 'utf8'));
+    const envText = fs.readFileSync(path.join(fixture.appPath, 'ztncui', 'src', '.env'), 'utf8');
+    assert.deepEqual(moonJson.roots[0].stableEndpoints, ['203.0.113.10/23456']);
+    assert.equal(fs.readFileSync(path.join(fixture.appPath, 'config', 'zerotier-one.port'), 'utf8'), '23456\n');
+    assert.match(envText, /^ZT_ADDR=localhost:23456$/m);
+});
+
 test('existing world files are rebuilt when endpoint settings change', () => {
     const fixture = makeFixture();
     createExistingZeroTier(fixture, {

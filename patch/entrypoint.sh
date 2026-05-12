@@ -8,6 +8,7 @@ CONFIG_PATH="${APP_PATH}/config"
 BACKUP_PATH="/bak"
 ZTNCUI_PATH="${APP_PATH}/ztncui"
 ZTNCUI_SRC_PATH="${ZTNCUI_PATH}/src"
+DEFAULT_ZT_PORT="9994"
 
 HTTP_SERVER_PID=""
 ZEROTIER_PID=""
@@ -22,8 +23,51 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
+read_config_value() {
+    if [ -f "$1" ]; then
+        tr -d '\r\n' < "$1"
+    fi
+    return 0
+}
+
+moon_endpoint_port() {
+    if [ -f "${ZEROTIER_PATH}/moon.json" ]; then
+        jq -r '.roots[0].stableEndpoints[]? | capture("^(?<host>.*)/(?<port>[0-9]+)$")? | .port' "${ZEROTIER_PATH}/moon.json" 2>/dev/null | sed -n '1p'
+    fi
+    return 0
+}
+
+moon_endpoint_ip() {
+    family="$1"
+    if [ -f "${ZEROTIER_PATH}/moon.json" ]; then
+        jq -r --arg family "${family}" '
+            .roots[0].stableEndpoints[]?
+            | capture("^(?<host>.*)/(?<port>[0-9]+)$")?
+            | .host
+            | select(if $family == "4" then test("^[0-9]+(\\.[0-9]+){3}$") else contains(":") end)
+        ' "${ZEROTIER_PATH}/moon.json" 2>/dev/null | sed -n '1p'
+    fi
+    return 0
+}
+
+resolve_zt_port() {
+    stored_port="$(read_config_value "${CONFIG_PATH}/zerotier-one.port")"
+    moon_port="$(moon_endpoint_port)"
+    requested_port="$(printf '%s' "${ZT_PORT:-}" | tr -d '\r\n')"
+
+    if [ -n "${stored_port}" ] && { [ -z "${requested_port}" ] || { [ "${requested_port}" = "${DEFAULT_ZT_PORT}" ] && [ "${stored_port}" != "${DEFAULT_ZT_PORT}" ]; }; }; then
+        ZT_PORT="${stored_port}"
+    elif [ -z "${stored_port}" ] && [ -n "${moon_port}" ] && { [ -z "${requested_port}" ] || [ "${requested_port}" = "${DEFAULT_ZT_PORT}" ]; }; then
+        ZT_PORT="${moon_port}"
+    else
+        ZT_PORT="${requested_port:-${DEFAULT_ZT_PORT}}"
+    fi
+    export ZT_PORT
+}
+
 write_config() {
     mkdir -p "${CONFIG_PATH}"
+    resolve_zt_port
     printf '%s\n' "${ZT_PORT}" > "${CONFIG_PATH}/zerotier-one.port"
     printf '%s\n' "${API_PORT}" > "${CONFIG_PATH}/ztncui.port"
 }
@@ -35,11 +79,35 @@ sync_file_server_port() {
 }
 
 discover_ips() {
+    ip_addr4_was_unset=0
+    ip_addr6_was_unset=0
     if [ -z "${IP_ADDR4+x}" ]; then
-        IP_ADDR4="$(curl -fsS https://ipv4.icanhazip.com/ || true)"
+        ip_addr4_was_unset=1
     fi
     if [ -z "${IP_ADDR6+x}" ]; then
-        IP_ADDR6="$(curl -fsS https://ipv6.icanhazip.com/ || true)"
+        ip_addr6_was_unset=1
+    fi
+
+    IP_ADDR4="$(printf '%s' "${IP_ADDR4:-}" | tr -d '\r\n')"
+    IP_ADDR6="$(printf '%s' "${IP_ADDR6:-}" | tr -d '\r\n')"
+
+    if [ -z "${IP_ADDR4}" ] && [ -z "${IP_ADDR6}" ]; then
+        IP_ADDR4="$(read_config_value "${CONFIG_PATH}/ip_addr4")"
+        IP_ADDR6="$(read_config_value "${CONFIG_PATH}/ip_addr6")"
+
+        if [ -z "${IP_ADDR4}" ]; then
+            IP_ADDR4="$(moon_endpoint_ip 4)"
+        fi
+        if [ -z "${IP_ADDR6}" ]; then
+            IP_ADDR6="$(moon_endpoint_ip 6)"
+        fi
+
+        if [ -z "${IP_ADDR4}" ] && [ "${ip_addr4_was_unset}" -eq 1 ]; then
+            IP_ADDR4="$(curl -fsS https://ipv4.icanhazip.com/ || true)"
+        fi
+        if [ -z "${IP_ADDR6}" ] && [ "${ip_addr6_was_unset}" -eq 1 ]; then
+            IP_ADDR6="$(curl -fsS https://ipv6.icanhazip.com/ || true)"
+        fi
     fi
 
     IP_ADDR4="$(printf '%s' "${IP_ADDR4:-}" | tr -d '\r\n')"
@@ -155,13 +223,36 @@ init_ztncui_password() {
 write_ztncui_env() {
     mkdir -p "${ZTNCUI_SRC_PATH}"
     cd "${ZTNCUI_SRC_PATH}"
+    tmp_env=".env.tmp.$$"
+    if [ -f .env ]; then
+        awk '
+            BEGIN {
+                managed["HTTP_PORT"] = 1
+                managed["NODE_ENV"] = 1
+                managed["HTTP_ALL_INTERFACES"] = 1
+                managed["ZT_ADDR"] = 1
+                managed["ZT_TOKEN"] = 1
+            }
+            /^[A-Za-z_][A-Za-z0-9_]*=/ {
+                key = $0
+                sub(/=.*/, "", key)
+                if (key in managed) {
+                    next
+                }
+            }
+            { print }
+        ' .env > "${tmp_env}"
+    else
+        : > "${tmp_env}"
+    fi
     {
         echo "HTTP_PORT=${API_PORT}"
         echo 'NODE_ENV=production'
         echo "HTTP_ALL_INTERFACES=${ZTNCUI_HTTP_ALL_INTERFACES:-true}"
         echo "ZT_ADDR=localhost:${ZT_PORT}"
         echo "ZT_TOKEN=$(cat "${ZEROTIER_PATH}/authtoken.secret")"
-    } > .env
+    } >> "${tmp_env}"
+    mv "${tmp_env}" .env
 }
 
 init_ztncui_data() {
