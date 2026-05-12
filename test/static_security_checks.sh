@@ -67,6 +67,7 @@ tracked_security_files=(
   Dockerfile
   .dockerignore
   compose.yaml
+  compose.public-http.yaml
   .env.example
   scripts/install-zerotier-client.sh
   scripts/install-zerotier-client.ps1
@@ -94,6 +95,7 @@ for file in "${tracked_security_files[@]}"; do
   require_file "$file"
 done
 require_file test/http_server_security.test.js
+require_file test/entrypoint_config.test.js
 
 require_match \
   'client one-click scripts use Authorization bearer header for planet downloads' \
@@ -172,16 +174,41 @@ require_match \
 
 require_match \
   'compose binds management UI to localhost by default' \
-  '\$\{HOST_BIND_IP:-127\.0\.0\.1\}:\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' \
+  '127\.0\.0\.1:\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' \
   compose.yaml
 
 require_match \
   'compose binds file server to localhost by default' \
-  '\$\{HOST_BIND_IP:-127\.0\.0\.1\}:\$\{FILE_SERVER_PORT:-3000\}:\$\{FILE_SERVER_PORT:-3000\}' \
+  '127\.0\.0\.1:\$\{FILE_SERVER_PORT:-3000\}:\$\{FILE_SERVER_PORT:-3000\}' \
+  compose.yaml
+
+reject_match \
+  'default compose does not use HOST_BIND_IP for plaintext HTTP publishing' \
+  'HOST_BIND_IP.*(API_PORT|FILE_SERVER_PORT)' \
   compose.yaml
 
 require_match \
-  'env example keeps management and file services local by default' \
+  'public HTTP override replaces the default port list' \
+  'ports:[[:space:]]+!override' \
+  compose.public-http.yaml
+
+require_match \
+  'public HTTP override marks the explicit plaintext opt-in' \
+  'PUBLIC_HTTP:[[:space:]]+"true"' \
+  compose.public-http.yaml
+
+require_match \
+  'public HTTP override publishes management UI through HOST_BIND_IP' \
+  '\$\{HOST_BIND_IP:-0\.0\.0\.0\}:\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' \
+  compose.public-http.yaml
+
+require_match \
+  'public HTTP override publishes file server through HOST_BIND_IP' \
+  '\$\{HOST_BIND_IP:-0\.0\.0\.0\}:\$\{FILE_SERVER_PORT:-3000\}:\$\{FILE_SERVER_PORT:-3000\}' \
+  compose.public-http.yaml
+
+require_match \
+  'env example keeps public HTTP override local until edited' \
   '^HOST_BIND_IP=127\.0\.0\.1$' \
   .env.example
 
@@ -283,6 +310,7 @@ require_match \
 require_any_match \
   'compose binds management port to localhost by default' \
   compose.yaml \
+  '127\.0\.0\.1:\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' \
   '127\.0\.0\.1:\$\{?API_PORT\}?:\$\{?API_PORT\}?' \
   '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?API_PORT\}?:\$\{?API_PORT\}?' \
   '\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*:-127\.0\.0\.1\}?:\$\{?API_PORT'
@@ -290,6 +318,7 @@ require_any_match \
 require_any_match \
   'compose binds file-server port to localhost by default' \
   compose.yaml \
+  '127\.0\.0\.1:\$\{FILE_SERVER_PORT:-3000\}:\$\{FILE_SERVER_PORT:-3000\}' \
   '127\.0\.0\.1:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?' \
   '-p[[:space:]]+\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*\}?:\$\{?FILE_PORT\}?:\$\{?FILE_PORT\}?' \
   '\$\{?[A-Z_]*(BIND|HOST)[A-Z_]*:-127\.0\.0\.1\}?:\$\{?FILE_SERVER_PORT'

@@ -5,7 +5,7 @@ This project is intended to be secure by default for fresh self-hosted deploymen
 ## Fresh installs
 
 - Recommended deployments start from `.env.example`, then run `docker compose up -d`.
-- `compose.yaml` binds the management UI and file server to `127.0.0.1` by default through `HOST_BIND_IP=127.0.0.1`. Keep this default unless you are placing a TLS reverse proxy or SSH tunnel in front of the services.
+- `compose.yaml` binds the management UI and file server to `127.0.0.1` by default. `HOST_BIND_IP` is ignored by the default Compose file and is only used by the explicit public HTTP override.
 - The management UI username defaults to `admin` unless `ZTNCUI_USER` is set.
 - The management password is no longer a public default. Set `ZTNCUI_BOOTSTRAP_PASSWORD` or `ZTNCUI_BOOTSTRAP_PASSWORD_FILE` explicitly, or let the installer generate a random password.
 - Generated credentials are written to `/app/config/ztncui.initial-password` in the container, mapped to `./data/zerotier/config/ztncui.initial-password` on the host, with restrictive permissions. Read it locally and rotate it after first login:
@@ -38,7 +38,7 @@ Rotate the file server key if it was ever shared in logs, shell history, browser
 
 - Management UI and file downloads should be bound to `127.0.0.1` on the host by default.
 - For remote administration, prefer an SSH tunnel or a reverse proxy with valid TLS certificates.
-- Public plaintext HTTP is for temporary lab use only and must be an explicit opt-in. With Compose, that means setting both `HOST_BIND_IP=0.0.0.0` and `PUBLIC_HTTP=true`. Do not use it for production or untrusted networks.
+- Public plaintext HTTP is for temporary lab use only and must be an explicit opt-in. With Compose, that means setting `HOST_BIND_IP=0.0.0.0` and running `docker compose -f compose.yaml -f compose.public-http.yaml up -d`. Do not use it for production or untrusted networks.
 - When exposing file downloads through a reverse proxy, keep the `Authorization: Bearer` header requirement.
 
 ## Updating pinned upstream sources
@@ -56,7 +56,7 @@ Builds select ZeroTier One with `ZEROTIER_REF` and pin `ztncui` with `ZTNCUI_REF
 ### 全新安装
 
 - 推荐部署流程是复制 `.env.example` 为 `.env`，再执行 `docker compose up -d`。
-- `compose.yaml` 默认通过 `HOST_BIND_IP=127.0.0.1` 将管理界面和文件服务绑定到宿主机本机地址。除非前面有 TLS 反向代理或 SSH 隧道，否则不要改为公网绑定。
+- `compose.yaml` 默认将管理界面和文件服务绑定到宿主机 `127.0.0.1`。默认 Compose 文件会忽略 `HOST_BIND_IP`，该变量只在显式启用公网 HTTP override 时使用。
 - 管理界面用户名默认是 `admin`，可通过 `ZTNCUI_USER` 修改。
 - 管理密码不再使用公开默认值。可以通过 `ZTNCUI_BOOTSTRAP_PASSWORD` 或 `ZTNCUI_BOOTSTRAP_PASSWORD_FILE` 指定；未指定时容器首次启动会生成随机密码。
 - 生成的初始密码保存在容器内 `/app/config/ztncui.initial-password`，宿主机路径为 `./data/zerotier/config/ztncui.initial-password`，应只在本机读取，并在首次登录后立即修改。
@@ -82,4 +82,4 @@ curl -H "Authorization: Bearer ${FILE_KEY}" http://127.0.0.1:3000/planet -o plan
 
 - 管理界面和文件下载服务默认应只绑定宿主机 `127.0.0.1`。
 - 远程管理请优先使用 SSH 隧道或带有效证书的 TLS 反向代理。
-- 公网明文 HTTP 仅适合临时实验环境，并且必须同时设置 `HOST_BIND_IP=0.0.0.0` 和 `PUBLIC_HTTP=true`；生产环境不要使用。
+- 公网明文 HTTP 仅适合临时实验环境，并且必须设置 `HOST_BIND_IP=0.0.0.0` 后执行 `docker compose -f compose.yaml -f compose.public-http.yaml up -d` 显式启用；生产环境不要使用。

@@ -223,7 +223,7 @@ cp .env.example .env
 vim .env
 ```
 
-Set at least one of `IP_ADDR4` or `IP_ADDR6`. The default `HOST_BIND_IP=127.0.0.1` keeps the management UI and file server bound to the host loopback address.
+Set at least one of `IP_ADDR4` or `IP_ADDR6`. By default, `compose.yaml` pins the management UI and file server to host `127.0.0.1`, so accidentally changing `HOST_BIND_IP` to a public address does not publish plaintext HTTP.
 
 3. **Start the service:**
 ```bash
@@ -621,7 +621,13 @@ vim .env
 docker compose up -d
 ```
 
-For temporary lab access over plaintext public HTTP, set both `HOST_BIND_IP=0.0.0.0` and `PUBLIC_HTTP=true`. Production public access should still use a TLS reverse proxy.
+For temporary lab access over plaintext public HTTP, set `HOST_BIND_IP=0.0.0.0` and explicitly load the public override:
+
+```bash
+docker compose -f compose.yaml -f compose.public-http.yaml up -d
+```
+
+That override sets `PUBLIC_HTTP=true` inside the container. Production public access should still use a TLS reverse proxy.
 
 ### Q13: Are upstream versions pinned during builds?
 **A:** Yes. `Dockerfile` selects the ZeroTier One source with `ZEROTIER_REF` and pins `ztncui` with `ZTNCUI_REF` to the full commit `1b2284864de48d2dcae22582fff122fe24909c3d`. The build logs and verifies the actual checked-out commits. GitHub Actions and the local `build.sh` both pass the ZeroTier build argument explicitly so image tags do not drift away from the source version being built.

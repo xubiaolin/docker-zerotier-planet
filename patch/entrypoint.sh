@@ -28,13 +28,9 @@ write_config() {
     printf '%s\n' "${API_PORT}" > "${CONFIG_PATH}/ztncui.port"
 }
 
-read_file_server_port() {
+sync_file_server_port() {
     mkdir -p "${CONFIG_PATH}"
-    if [ ! -f "${CONFIG_PATH}/file_server.port" ]; then
-        printf '%s\n' "${FILE_SERVER_PORT}" > "${CONFIG_PATH}/file_server.port"
-    else
-        FILE_SERVER_PORT="$(cat "${CONFIG_PATH}/file_server.port")"
-    fi
+    printf '%s\n' "${FILE_SERVER_PORT}" > "${CONFIG_PATH}/file_server.port"
     export FILE_SERVER_PORT
 }
 
@@ -70,6 +66,42 @@ generate_planet() {
     mv 0000000008eac90a.moon "${APP_PATH}/dist/planet"
 }
 
+write_world_files() {
+    endpoints="$1"
+
+    jq --argjson newEndpoints "${endpoints}" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json
+    mv temp.json moon.json
+
+    rm -f ./*.moon
+    ./zerotier-idtool genmoon moon.json
+    mkdir -p moons.d
+    rm -f ./moons.d/*.moon
+    cp ./*.moon ./moons.d
+
+    mkdir -p "${APP_PATH}/dist"
+    generate_planet
+    cp ./*.moon "${APP_PATH}/dist/"
+}
+
+refresh_zerotier_world_files() {
+    cd "${ZEROTIER_PATH}"
+
+    discover_ips
+    printf '%s\n' "${IP_ADDR4}" > "${CONFIG_PATH}/ip_addr4"
+    printf '%s\n' "${IP_ADDR6}" > "${CONFIG_PATH}/ip_addr6"
+
+    endpoints="$(stable_endpoints_json)"
+    current_endpoints="$(jq -c '.roots[0].stableEndpoints // []' moon.json 2>/dev/null || true)"
+
+    if [ "${1:-}" = "force" ] || [ "${current_endpoints}" != "${endpoints}" ] || [ ! -f "${APP_PATH}/dist/planet" ]; then
+        echo "Refreshing ZeroTier world files"
+        write_world_files "${endpoints}"
+        echo "mkmoonworld success!"
+    else
+        echo "ZeroTier world files are current"
+    fi
+}
+
 init_zerotier_data() {
     echo "Initializing ZeroTier data"
     cp -r "${BACKUP_PATH}/zerotier-one/." "${ZEROTIER_PATH}/"
@@ -78,29 +110,14 @@ init_zerotier_data() {
     openssl rand -hex 16 > authtoken.secret
     ./zerotier-idtool generate identity.secret identity.public
     ./zerotier-idtool initmoon identity.public > moon.json
-
-    discover_ips
-    printf '%s\n' "${IP_ADDR4}" > "${CONFIG_PATH}/ip_addr4"
-    printf '%s\n' "${IP_ADDR6}" > "${CONFIG_PATH}/ip_addr6"
-
-    endpoints="$(stable_endpoints_json)"
-    jq --argjson newEndpoints "${endpoints}" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json
-    mv temp.json moon.json
-
-    ./zerotier-idtool genmoon moon.json
-    mkdir -p moons.d
-    cp ./*.moon ./moons.d
-
-    mkdir -p "${APP_PATH}/dist"
-    generate_planet
-    cp ./*.moon "${APP_PATH}/dist/"
-    echo "mkmoonworld success!"
+    refresh_zerotier_world_files force
 }
 
 check_zerotier() {
     mkdir -p "${ZEROTIER_PATH}"
     if [ "$(ls -A "${ZEROTIER_PATH}")" ]; then
         echo "${ZEROTIER_PATH} is not empty, starting directly"
+        refresh_zerotier_world_files
     else
         init_zerotier_data
     fi
@@ -135,10 +152,8 @@ init_ztncui_password() {
     unset PASSWORD ZTNCUI_ADMIN_PASSWORD
 }
 
-init_ztncui_data() {
-    echo "Initializing ztncui data"
-    cp -r "${BACKUP_PATH}/ztncui/." "${ZTNCUI_PATH}/"
-
+write_ztncui_env() {
+    mkdir -p "${ZTNCUI_SRC_PATH}"
     cd "${ZTNCUI_SRC_PATH}"
     {
         echo "HTTP_PORT=${API_PORT}"
@@ -147,6 +162,13 @@ init_ztncui_data() {
         echo "ZT_ADDR=localhost:${ZT_PORT}"
         echo "ZT_TOKEN=$(cat "${ZEROTIER_PATH}/authtoken.secret")"
     } > .env
+}
+
+init_ztncui_data() {
+    echo "Initializing ztncui data"
+    cp -r "${BACKUP_PATH}/ztncui/." "${ZTNCUI_PATH}/"
+
+    write_ztncui_env
     init_ztncui_password
     echo "ztncui configuration successful!"
 }
@@ -155,6 +177,7 @@ check_ztncui() {
     mkdir -p "${ZTNCUI_PATH}"
     if [ "$(ls -A "${ZTNCUI_PATH}")" ]; then
         printf '%s\n' "${API_PORT}" > "${CONFIG_PATH}/ztncui.port"
+        write_ztncui_env
         echo "${ZTNCUI_PATH} is not empty, starting directly"
     else
         init_ztncui_data
@@ -175,7 +198,7 @@ start_services() {
     wait "$!"
 }
 
-read_file_server_port
+sync_file_server_port
 write_config
 check_zerotier
 check_ztncui

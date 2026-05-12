@@ -1,0 +1,9 @@
+services:
+  ztplanet:
+    environment:
+      PUBLIC_HTTP: "true"
+    ports: !override
+      - "${ZT_PORT:-9994}:${ZT_PORT:-9994}"
+      - "${ZT_PORT:-9994}:${ZT_PORT:-9994}/udp"
+      - "${HOST_BIND_IP:-0.0.0.0}:${API_PORT:-3443}:${API_PORT:-3443}"
+      - "${HOST_BIND_IP:-0.0.0.0}:${FILE_SERVER_PORT:-3000}:${FILE_SERVER_PORT:-3000}"

@@ -227,7 +227,7 @@ cp .env.example .env
 vim .env
 ```
 
-至少设置 `IP_ADDR4` 或 `IP_ADDR6`。默认 `HOST_BIND_IP=127.0.0.1`，管理界面和文件服务只绑定宿主机本机地址。
+至少设置 `IP_ADDR4` 或 `IP_ADDR6`。默认 `compose.yaml` 会把管理界面和文件服务固定绑定到宿主机 `127.0.0.1`，即使误把 `HOST_BIND_IP` 改成公网地址也不会公开明文 HTTP。
 
 3. **启动服务：**
 ```bash
@@ -628,7 +628,13 @@ vim .env
 docker compose up -d
 ```
 
-如果只是临时实验需要公网明文访问管理界面和文件服务，可同时设置 `HOST_BIND_IP=0.0.0.0` 与 `PUBLIC_HTTP=true`。生产公网访问仍推荐 TLS 反向代理。
+如果只是临时实验需要公网明文访问管理界面和文件服务，可设置 `HOST_BIND_IP=0.0.0.0`，并显式加载公网 override：
+
+```bash
+docker compose -f compose.yaml -f compose.public-http.yaml up -d
+```
+
+该 override 会将容器内 `PUBLIC_HTTP` 设为 `true`。生产公网访问仍推荐 TLS 反向代理。
 
 ### Q13: 构建时是否锁定上游版本？
 **A:** 是。`Dockerfile` 通过 `ZEROTIER_REF` 指定 ZeroTier One 源码引用，并通过 `ZTNCUI_REF` 固定 `ztncui` 到完整提交 `1b2284864de48d2dcae22582fff122fe24909c3d`；构建时会输出并校验实际 checkout 的提交。GitHub Actions 和本地 `build.sh` 都会显式传入 ZeroTier 构建参数，避免自动构建时镜像标签和源码版本脱节。
