@@ -402,11 +402,45 @@ We recommend the [Unofficial Android Client](https://github.com/kaaass/ZerotierF
 
 ### 4.6 iOS
 
-**Option 1: Jailbreak**  
-Install ZeroTier and replace the `planet` file (requires a jailbroken device).
+Starting with ZeroTier One `1.16.0`, mobile clients can import a custom `planet` file from a link or from the app settings. This is the preferred method for iOS.
 
-**Option 2: WireGuard**  
-Use WireGuard to access the ZeroTier network indirectly.
+**Option 1: Import a custom planet (recommended, ZeroTier One 1.16.0+)**
+
+1. Get the `planet` file. The default path is `./data/zerotier/dist/planet`, and it can also be downloaded from the file service:
+
+```text
+http://SERVER_PUBLIC_IP:3000/planet?key=YOUR_FILE_KEY
+```
+
+2. Convert the `planet` file to single-line base64 text:
+
+```bash
+base64 -w 0 ./data/zerotier/dist/planet > planet.b64
+```
+
+If your `base64` implementation does not support `-w`, use:
+
+```bash
+base64 < ./data/zerotier/dist/planet | tr -d '\n' > planet.b64
+```
+
+3. Create an import URL with the contents of `planet.b64`:
+
+```text
+https://joinzt.com/addplanet?v=1&planet=REPLACE_WITH_PLANET_B64_CONTENT
+```
+
+4. Open the link on the iPhone, or open it in a desktop browser and scan the generated QR code with the iPhone. ZeroTier One will prompt you to save and use the new `planet` configuration.
+
+You can also open Settings in the iOS ZeroTier One app, choose **Add Planet File**, and paste the full contents of `planet.b64`.
+
+Official reference: https://docs.zerotier.com/roots/#mobile
+
+**Option 2: Jailbreak**
+If you use an older ZeroTier One client or cannot use the import feature, install ZeroTier and replace the `planet` file on a jailbroken device.
+
+**Option 3: WireGuard**
+If iOS cannot use the custom `planet` directly, connect another device to the ZeroTier network and access it from iOS through WireGuard.
 
 ---
 
@@ -471,7 +505,7 @@ rm -rf ./data/zerotier
 **A:** Check firewall rules. On **Windows**, allow inbound **ICMP**. Apply equivalent settings on **Linux**.
 
 ### Q2: How can I use ZeroTier on iOS?
-**A:** There is a plugin here (requires a jailbroken device): https://github.com/lemon4ex/ZeroTieriOSFix
+**A:** ZeroTier One `1.16.0` and later can import a custom `planet` on mobile clients. See [4.6 iOS](#46-ios). For older clients, use the jailbreak option: https://github.com/lemon4ex/ZeroTieriOSFix
 
 ### Q3: Why don’t I see the official PLANET peers?
 **A:** This project removes the official roots and uses only your custom PLANET nodes.

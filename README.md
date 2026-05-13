@@ -409,11 +409,45 @@ PS C:\Windows\system32>
 
 ### 4.6 iOS 客户端配置
 
-**方案一：越狱方案**
-越狱后安装 ZeroTier，然后替换 `planet` 文件
+ZeroTier One 移动端从 `1.16.0` 起支持通过链接或 App 设置导入自定义 `planet` 文件，iOS 客户端优先使用这个方式。
 
-**方案二：WireGuard 方案**
-使用 WireGuard 接入到 ZeroTier 网络
+**方案一：导入自定义 planet（推荐，ZeroTier One 1.16.0+）**
+
+1. 先获取 `planet` 文件，默认路径为 `./data/zerotier/dist/planet`，也可以通过文件服务下载：
+
+```text
+http://服务器公网IP:3000/planet?key=你的FILE_KEY
+```
+
+2. 将 `planet` 文件转为单行 base64 文本：
+
+```bash
+base64 -w 0 ./data/zerotier/dist/planet > planet.b64
+```
+
+如果当前系统的 `base64` 不支持 `-w` 参数，可以使用：
+
+```bash
+base64 < ./data/zerotier/dist/planet | tr -d '\n' > planet.b64
+```
+
+3. 使用 `planet.b64` 的内容生成导入链接：
+
+```text
+https://joinzt.com/addplanet?v=1&planet=这里替换为planet.b64的内容
+```
+
+4. 在 iPhone 上打开该链接，或在桌面浏览器打开链接后用 iPhone 扫描页面二维码。ZeroTier One 会提示保存并使用新的 `planet` 配置。
+
+也可以在 iOS ZeroTier One 的 Settings 中选择 **Add Planet File**，直接粘贴 `planet.b64` 的完整内容。
+
+官方说明参考：https://docs.zerotier.com/roots/#mobile
+
+**方案二：越狱方案**
+旧版 ZeroTier One 或无法使用导入功能时，可以越狱后安装 ZeroTier，然后替换 `planet` 文件。
+
+**方案三：WireGuard 方案**
+无法直接在 iOS 上使用自定义 `planet` 时，可以让其他设备接入 ZeroTier 网络，再通过 WireGuard 间接接入。
 
 ---
 
@@ -478,7 +512,7 @@ rm -rf ./data/zerotier
 **A:** 请检查防火墙设置，`Windows` 系统需要允许 `ICMP` 入站，`Linux` 同理
 
 ### Q2: iOS 客户端怎么用？
-**A:** iOS 客户端插件在这里，设备需要越狱：https://github.com/lemon4ex/ZeroTieriOSFix
+**A:** ZeroTier One `1.16.0` 及以上版本支持在移动端导入自定义 `planet`，参考 [4.6 iOS 客户端配置](#46-ios-客户端配置)。旧版客户端可以使用越狱方案：https://github.com/lemon4ex/ZeroTieriOSFix
 
 ### Q3: 为什么看不到官方的 Planet？
 **A:** 该项目剔除了官方服务器，只保留了自定义的 Planet 节点
