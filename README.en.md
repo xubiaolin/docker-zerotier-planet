@@ -4,7 +4,7 @@
 
 # Docker ZeroTier Planet
 
-> One‑click deployment of a ZeroTier **Planet** server, with Docker‑based containerized installation.
+> Deploy a ZeroTier **Planet** server with Docker Compose.
 
 ## 📢 Community
 
@@ -26,7 +26,7 @@
 - 🐳 Docker containerized deployment
 - 📥 Supports downloading **planet** and **moon** configuration files via URL
 - 🌐 Can be deployed as either a **Moon** or **Planet** server
-- 🔧 Simple one‑click deployment script
+- 🔧 `.env`-driven Docker Compose deployment
 - 📊 Visual, web‑based management UI
 
 ## 📋 Table of Contents
@@ -37,7 +37,7 @@
 - [3. Getting Started](#3-getting-started)
   - [3.1 Prerequisites](#31-prerequisites)
   - [3.2 Get the Source Code](#32-get-the-source-code)
-  - [3.3 Run the Installer](#33-run-the-installer)
+  - [3.3 Deploy with Docker Compose](#33-deploy-with-docker-compose)
   - [3.4 Download the planet File](#34-download-the-planet-file)
   - [3.5 Create a Network](#35-create-a-network)
 - [4. Client Configuration](#4-client-configuration)
@@ -142,9 +142,11 @@ Before you begin, make sure your server meets the following:
   - `3443/tcp` (management UI, adjust if needed)
   - `9994/tcp` (ZeroTier transport, adjust if needed)
   - `9994/udp` (ZeroTier transport, adjust if needed)
+  - `3000/tcp` (planet/moon file downloads, adjust if needed)
 
 #### Software
 - ✅ Docker (container runtime)
+- ✅ Docker Compose plugin (`docker compose`)
 - ✅ Git (to fetch the repository)
 
 #### OS
@@ -206,43 +208,63 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
-### 3.3 Run the Installer
+### 3.3 Deploy with Docker Compose
 
 1. **Enter the project directory:**
 ```bash
 cd docker-zerotier-planet
 ```
 
-2. **Run the deployment script:**
+2. **Create the `.env` configuration file:**
 ```bash
-./deploy.sh
+cp .env.example .env
 ```
 
-3. **Choose an action:**
-```
-Welcome to the zerotier-planet script. Choose an action:
-1. Install
-2. Uninstall
-3. Update
-4. Show Info
-5. Exit
-Enter a number:
+3. **Generate a file download key and edit the config:**
+```bash
+openssl rand -hex 32
+vi .env
 ```
 
-> **Tip:** The script typically completes in 1–3 minutes, depending on your network and hardware.
+At minimum, update these values:
 
-4. **Successful installation:**
+```env
+IP_ADDR4=YOUR_PUBLIC_IPV4
+IP_ADDR6=
+ZT_PORT=9994
+API_PORT=3443
+FILE_SERVER_PORT=3000
+FILE_KEY=THE_RANDOM_KEY_FROM_THE_PREVIOUS_STEP
+```
 
-![install-finish](./assets/install_finish.png)
+By default, `ZT_PORT`, `API_PORT`, and `FILE_SERVER_PORT` are publicly exposed. Open the matching ports in both the server firewall and your cloud provider security group.
+
+4. **Start the service:**
+```bash
+docker compose up -d
+```
+
+5. **Check status and logs:**
+```bash
+docker compose ps
+docker compose logs -f myztplanet
+```
 
 ### 3.4 Download the planet File
 
-After the script completes, the `planet` and `moon` configuration files are generated in `./data/zerotier/dist`.
+After the first container start, the `planet` and `moon` configuration files are generated in the directory configured by `ZEROTIER_DIST_DIR` in `.env`. The default is `./data/zerotier/dist`.
 
 You can retrieve them in either of two ways:
 
-1. **Download from the URL shown upon completion**, or
+1. **Download from the file service URL**, or
 2. **Use `scp` or another file transfer tool to fetch them from the server**
+
+With the default configuration, the download URLs look like this:
+
+```text
+http://SERVER_PUBLIC_IP:3000/planet?key=YOUR_FILE_KEY
+http://SERVER_PUBLIC_IP:3000/MOON_FILE_NAME?key=YOUR_FILE_KEY
+```
 
 > **Important:** Keep these files safe—you will need them when configuring clients.
 
@@ -432,7 +454,13 @@ server {
 ## 6. Uninstall
 
 ```bash
-docker rm -f zerotier-planet
+docker compose down
+```
+
+To remove persisted data as well:
+
+```bash
+rm -rf ./data/zerotier
 ```
 
 ---
@@ -467,7 +495,12 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: Forgot the management password?
-**A:** Run `./deploy.sh` and select the option to reset the password.
+**A:** Reset it to the default `admin` / `password` credentials:
+
+```bash
+docker compose exec myztplanet sh -c 'cp /app/ztncui/src/etc/default.passwd /app/ztncui/src/etc/passwd'
+docker compose restart myztplanet
+```
 
 ### Q7: Can’t connect to PLANET?
 **A:** Check firewalls. If you’re on Alibaba Cloud, Tencent Cloud, etc., open the required ports in the provider console. Also open them on Linux itself (e.g., `ufw`).
@@ -493,33 +526,12 @@ If your peer shows `RELAY`, traffic is being relayed.
 ### Q11: Can I deploy on ARM servers?
 **A:** Yes.
 
-### Q12: Do you support `docker-compose`?
-**A:** Yes—sample configuration:
+### Q12: How do I upgrade the container?
+**A:** Pull the new image and recreate the service:
 
-```yaml
-version: '3'
-
-services:
-  myztplanet:
-    image: xubiaolin/zerotier-planet:latest
-    container_name: ztplanet
-    ports:
-      - 9994:9994
-      - 9994:9994/udp
-      - 3443:3443
-      - 3000:3000
-    environment:
-      - IP_ADDR4=[IPV4IP ADDRESS]
-      - IP_ADDR6=
-      - ZT_PORT=9994
-      - API_PORT=3443
-      - FILE_SERVER_PORT=3000
-    volumes:
-      - ./data/zerotier/dist:/app/dist
-      - ./data/zerotier/ztncui:/app/ztncui
-      - ./data/zerotier/one:/var/lib/zerotier-one
-      - ./data/zerotier/config:/app/config
-    restart: unless-stopped
+```bash
+docker compose pull
+docker compose up -d
 ```
 
 ---

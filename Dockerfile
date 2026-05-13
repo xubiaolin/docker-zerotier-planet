@@ -7,7 +7,6 @@ ENV TAG=${TAG}
 WORKDIR /app
 ADD ./patch/entrypoint.sh /app/entrypoint.sh
 ADD ./patch/http_server.js /app/http_server.js
-ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
 
 # init tool
 RUN set -x\
@@ -31,14 +30,9 @@ RUN set -x\
     && sleep 5s\
     && (ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 || true)\
     && echo "zerotier-one init success!"\
-    && cd /app/ZeroTierOne/attic/world \
-    && cp /app/patch/mkworld_custom.cpp .\
-    && mv mkworld.cpp mkworld.cpp.bak \
-    && mv mkworld_custom.cpp mkworld.cpp \
-    && sh build.sh \
     && mkdir -p /var/lib/zerotier-one \
-    && mv mkworld /var/lib/zerotier-one\
-    && echo "mkworld build success!"
+    && cp /app/ZeroTierOne/zerotier-one /var/lib/zerotier-one/zerotier-idtool\
+    && echo "zerotier-idtool prepared!"
 
 
 
@@ -71,6 +65,7 @@ COPY --from=builder /app/ztncui /bak/ztncui
 COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
+COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-idtool
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /app/http_server.js /app/http_server.js
 

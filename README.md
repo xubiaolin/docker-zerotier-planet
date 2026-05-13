@@ -6,7 +6,7 @@
 
 # Docker ZeroTier Planet
 
-> 一键部署 ZeroTier Planet 服务器，支持 Docker 容器化部署
+> 使用 Docker Compose 部署 ZeroTier Planet 服务器
 
 ## 📢 交流群
 
@@ -29,7 +29,7 @@
 - 🐳 Docker 容器化部署
 - 📥 支持 URL 下载 planet、moon 配置
 - 🌐 可作为 Moon 或 Planet 服务器搭建
-- 🔧 简单易用的一键部署脚本
+- 🔧 使用 `.env` 管理动态配置，支持 Docker Compose 部署
 - 📊 可视化 Web 管理界面
 
 ## 📋 目录
@@ -40,7 +40,7 @@
 - [3. 开始安装](#3-开始安装)
   - [3.1 环境准备](#31-环境准备)
   - [3.2 下载项目源码](#32-下载项目源码)
-  - [3.3 执行安装脚本](#33-执行安装脚本)
+  - [3.3 使用 Docker Compose 部署](#33-使用-docker-compose-部署)
   - [3.4 下载 planet 文件](#34-下载-planet-文件)
   - [3.5 新建网络](#35-新建网络)
 - [4. 客户端配置](#4-客户端配置)
@@ -147,9 +147,11 @@
   - `3443/tcp` (管理面板，根据实际情况调整)
   - `9994/tcp` (ZeroTier 通信，根据实际情况调整)
   - `9994/udp` (ZeroTier 通信，根据实际情况调整)
+  - `3000/tcp` (planet/moon 文件下载，根据实际情况调整)
 
 #### 软件依赖
 - ✅ Docker (容器运行环境)
+- ✅ Docker Compose Plugin (`docker compose`)
 - ✅ Git (获取项目代码)
 
 #### 系统要求
@@ -212,43 +214,63 @@ git clone https://github.com/xubiaolin/docker-zerotier-planet.git
 git clone https://ghproxy.imoyuapp.win/github.com/xubiaolin/docker-zerotier-planet.git
 ```
 
-### 3.3 执行安装脚本
+### 3.3 使用 Docker Compose 部署
 
 1. **进入项目目录：**
 ```bash
 cd docker-zerotier-planet
 ```
 
-2. **运行部署脚本：**
+2. **创建 `.env` 配置文件：**
 ```bash
-./deploy.sh
+cp .env.example .env
 ```
 
-3. **根据提示选择操作：**
-```
-欢迎使用 zerotier-planet 脚本，请选择需要执行的操作：
-1. 安装
-2. 卸载
-3. 更新
-4. 查看信息
-5. 退出
-请输入数字：
+3. **生成文件下载密钥并编辑配置：**
+```bash
+openssl rand -hex 32
+vi .env
 ```
 
-> **提示**：整个脚本预计需要 1-3 分钟，具体时间取决于网络与机型
+至少需要修改以下配置：
 
-4. **安装成功标志：**
+```env
+IP_ADDR4=你的公网IPv4
+IP_ADDR6=
+ZT_PORT=9994
+API_PORT=3443
+FILE_SERVER_PORT=3000
+FILE_KEY=上一步生成的随机密钥
+```
 
-![install-finish](./assets/install_finish.png)
+默认会将 `ZT_PORT`、`API_PORT`、`FILE_SERVER_PORT` 暴露到公网，请同时在服务器防火墙和云厂商安全组中放行对应端口。
+
+4. **启动服务：**
+```bash
+docker compose up -d
+```
+
+5. **查看运行状态和日志：**
+```bash
+docker compose ps
+docker compose logs -f myztplanet
+```
 
 ### 3.4 下载 planet 文件
 
-脚本运行完成后，会在 `./data/zerotier/dist` 目录下生成 `planet` 和 `moon` 配置文件。
+容器首次启动后，会在 `.env` 中 `ZEROTIER_DIST_DIR` 指定的目录下生成 `planet` 和 `moon` 配置文件，默认路径为 `./data/zerotier/dist`。
 
 您可以通过以下两种方式获取这些文件：
 
-1. **通过安装完成后提供的 URL 直接下载**
+1. **通过文件服务 URL 下载**
 2. **使用 scp 或其他文件传输工具从服务器下载**
+
+如果使用默认配置，文件下载地址格式如下：
+
+```text
+http://服务器公网IP:3000/planet?key=你的FILE_KEY
+http://服务器公网IP:3000/moon文件名?key=你的FILE_KEY
+```
 
 > **重要**：请妥善保存这些文件，后续配置客户端时会用到。
 
@@ -439,7 +461,13 @@ server {
 ## 6. 卸载
 
 ```bash
-docker rm -f zerotier-planet
+docker compose down
+```
+
+如需同时删除持久化数据：
+
+```bash
+rm -rf ./data/zerotier
 ```
 
 ---
@@ -476,7 +504,12 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
 ### Q6: 管理后台忘记密码怎么办？
-**A:** 执行 `./deploy.sh`，选择重置密码即可
+**A:** 执行以下命令重置为默认账号 `admin` / `password`：
+
+```bash
+docker compose exec myztplanet sh -c 'cp /app/ztncui/src/etc/default.passwd /app/ztncui/src/etc/passwd'
+docker compose restart myztplanet
+```
 
 ### Q7: 为什么连不上 planet？
 **A:** 请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。Linux 机器上也要放行，如果安装了 ufw 等防火墙工具。
@@ -502,33 +535,12 @@ ab403e2074 1.10.2 LEAF      -1 RELAY
 ### Q11: ARM 服务器可以搭建吗？
 **A:** 可以
 
-### Q12: 支持 docker-compose 启动部署吗？
-**A:** 支持，参考 docker-compose 文件如下：
+### Q12: 如何更新容器？
+**A:** 拉取新镜像并重新创建容器：
 
-```yaml
-version: '3'
-
-services:
-  myztplanet:
-    image: xubiaolin/zerotier-planet:latest
-    container_name: ztplanet
-    ports:
-      - 9994:9994
-      - 9994:9994/udp
-      - 3443:3443
-      - 3000:3000
-    environment:
-      - IP_ADDR4=[IPV4IP ADDRESS]
-      - IP_ADDR6=
-      - ZT_PORT=9994
-      - API_PORT=3443
-      - FILE_SERVER_PORT=3000
-    volumes:
-      - ./data/zerotier/dist:/app/dist
-      - ./data/zerotier/ztncui:/app/ztncui
-      - ./data/zerotier/one:/var/lib/zerotier-one
-      - ./data/zerotier/config:/app/config
-    restart: unless-stopped
+```bash
+docker compose pull
+docker compose up -d
 ```
 
 ---
