@@ -52,13 +52,15 @@ esac
     return { root, appPath, backupPath, zeroTierPath };
 }
 
-function writeTestEntrypoint(fixture) {
+function writeTestEntrypoint(fixture, options = {}) {
     const source = fs.readFileSync(entrypointPath, 'utf8');
-    const testSource = source
+    let testSource = source
         .replace('ZEROTIER_PATH="/var/lib/zerotier-one"', `ZEROTIER_PATH=${shellQuote(fixture.zeroTierPath)}`)
         .replace('APP_PATH="/app"', `APP_PATH=${shellQuote(fixture.appPath)}`)
-        .replace('BACKUP_PATH="/bak"', `BACKUP_PATH=${shellQuote(fixture.backupPath)}`)
-        .replace(/\nstart_services\n?$/, '\n: # start_services skipped by test harness\n');
+        .replace('BACKUP_PATH="/bak"', `BACKUP_PATH=${shellQuote(fixture.backupPath)}`);
+    if (options.skipStartServices !== false) {
+        testSource = testSource.replace(/\nstart_services\n?$/, '\n: # start_services skipped by test harness\n');
+    }
     const testEntrypointPath = path.join(fixture.root, 'entrypoint.sh');
     fs.writeFileSync(testEntrypointPath, testSource, { mode: 0o755 });
     return testEntrypointPath;
@@ -93,6 +95,24 @@ function runEntrypoint(fixture, env = {}) {
         cwd: fixture.root,
         env: {
             ...process.env,
+            ZT_PORT: '12345',
+            API_PORT: '4444',
+            FILE_SERVER_PORT: '4000',
+            IP_ADDR4: '203.0.113.10',
+            IP_ADDR6: '',
+            ...env,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+}
+
+function runEntrypointWithServices(fixture, env = {}) {
+    const script = writeTestEntrypoint(fixture, { skipStartServices: false });
+    execFileSync('sh', [script], {
+        cwd: fixture.root,
+        env: {
+            ...process.env,
+            PATH: `${path.join(fixture.root, 'bin')}${path.delimiter}${process.env.PATH}`,
             ZT_PORT: '12345',
             API_PORT: '4444',
             FILE_SERVER_PORT: '4000',
@@ -170,7 +190,7 @@ test('existing world files reuse saved IP addresses when Compose passes blank IP
     assert.equal(fs.readFileSync(path.join(fixture.appPath, 'config', 'ip_addr4'), 'utf8'), '203.0.113.10\n');
 });
 
-test('existing ZeroTier port is preserved when Compose supplies the default port', () => {
+test('Compose ZT_PORT overrides a saved ZeroTier port', () => {
     const fixture = makeFixture();
     createExistingZeroTier(fixture, {
         worldType: 'moon',
@@ -184,9 +204,36 @@ test('existing ZeroTier port is preserved when Compose supplies the default port
 
     const moonJson = JSON.parse(fs.readFileSync(path.join(fixture.zeroTierPath, 'moon.json'), 'utf8'));
     const envText = fs.readFileSync(path.join(fixture.appPath, 'ztncui', 'src', '.env'), 'utf8');
-    assert.deepEqual(moonJson.roots[0].stableEndpoints, ['203.0.113.10/23456']);
-    assert.equal(fs.readFileSync(path.join(fixture.appPath, 'config', 'zerotier-one.port'), 'utf8'), '23456\n');
-    assert.match(envText, /^ZT_ADDR=localhost:23456$/m);
+    assert.deepEqual(moonJson.roots[0].stableEndpoints, ['203.0.113.10/9994']);
+    assert.equal(fs.readFileSync(path.join(fixture.appPath, 'config', 'zerotier-one.port'), 'utf8'), '9994\n');
+    assert.match(envText, /^ZT_ADDR=localhost:9994$/m);
+});
+
+test('entrypoint fails when zerotier-one exits during startup', () => {
+    const fixture = makeFixture();
+    createExistingZeroTier(fixture);
+    createExistingZtncui(fixture);
+    fs.mkdirSync(path.join(fixture.root, 'bin'), { recursive: true });
+    fs.writeFileSync(
+        path.join(fixture.zeroTierPath, 'zerotier-one'),
+        `#!/bin/sh
+exit 42
+`,
+        { mode: 0o755 }
+    );
+    fs.writeFileSync(
+        path.join(fixture.root, 'bin', 'npm'),
+        `#!/bin/sh
+exit 0
+`,
+        { mode: 0o755 }
+    );
+    fs.writeFileSync(
+        path.join(fixture.appPath, 'http_server.js'),
+        'setInterval(() => {}, 1000);\n'
+    );
+
+    assert.throws(() => runEntrypointWithServices(fixture), /Command failed/);
 });
 
 test('existing world files are rebuilt when endpoint settings change', () => {

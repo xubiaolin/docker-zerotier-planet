@@ -15,23 +15,39 @@ function readPassword() {
   return process.env.ZTNCUI_ADMIN_PASSWORD || '';
 }
 
+function readUsers(passwdPath) {
+  try {
+    const users = JSON.parse(fs.readFileSync(passwdPath, 'utf8'));
+    if (!users || typeof users !== 'object' || Array.isArray(users)) {
+      throw new Error('invalid ztncui passwd format');
+    }
+    return users;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return {};
+    }
+    throw error;
+  }
+}
+
 async function main() {
   const password = readPassword();
   if (!password) {
     throw new Error('empty ztncui credential');
   }
 
+  const passwdPath = '/app/ztncui/src/etc/passwd';
   const hash = await argon2.hash(password, { type: argon2.argon2i });
-  const users = {
-    admin: {
-      name: 'admin',
-      pass_set: true,
-      hash,
-    },
+  const users = readUsers(passwdPath);
+  users.admin = {
+    ...(users.admin && typeof users.admin === 'object' ? users.admin : {}),
+    name: 'admin',
+    pass_set: true,
+    hash,
   };
 
   fs.mkdirSync('/app/ztncui/src/etc', { recursive: true });
-  fs.writeFileSync('/app/ztncui/src/etc/passwd', JSON.stringify(users));
+  fs.writeFileSync(passwdPath, JSON.stringify(users));
 }
 
 main().catch((err) => {

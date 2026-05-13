@@ -55,12 +55,14 @@ resolve_zt_port() {
     moon_port="$(moon_endpoint_port)"
     requested_port="$(printf '%s' "${ZT_PORT:-}" | tr -d '\r\n')"
 
-    if [ -n "${stored_port}" ] && { [ -z "${requested_port}" ] || { [ "${requested_port}" = "${DEFAULT_ZT_PORT}" ] && [ "${stored_port}" != "${DEFAULT_ZT_PORT}" ]; }; }; then
+    if [ -n "${requested_port}" ]; then
+        ZT_PORT="${requested_port}"
+    elif [ -n "${stored_port}" ]; then
         ZT_PORT="${stored_port}"
-    elif [ -z "${stored_port}" ] && [ -n "${moon_port}" ] && { [ -z "${requested_port}" ] || [ "${requested_port}" = "${DEFAULT_ZT_PORT}" ]; }; then
+    elif [ -n "${moon_port}" ]; then
         ZT_PORT="${moon_port}"
     else
-        ZT_PORT="${requested_port:-${DEFAULT_ZT_PORT}}"
+        ZT_PORT="${DEFAULT_ZT_PORT}"
     fi
     export ZT_PORT
 }
@@ -278,8 +280,10 @@ check_ztncui() {
 start_services() {
     echo "Start ztncui and zerotier"
     cd "${ZEROTIER_PATH}"
-    ./zerotier-one -p"$(cat "${CONFIG_PATH}/zerotier-one.port")" -d &
-    ZEROTIER_PID="$!"
+    ./zerotier-one -p"$(cat "${CONFIG_PATH}/zerotier-one.port")" -d || {
+        echo "zerotier-one failed to start" >&2
+        exit 1
+    }
 
     node "${APP_PATH}/http_server.js" > "${APP_PATH}/server.log" 2>&1 &
     HTTP_SERVER_PID="$!"
