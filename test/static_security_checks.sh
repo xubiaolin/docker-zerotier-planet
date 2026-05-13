@@ -18,6 +18,7 @@ require_grep() {
 }
 
 require_file docker-compose.yml
+require_file docker-compose.dev.yml
 require_file .env.example
 require_file build.sh
 if [ -f deploy.sh ]; then
@@ -48,6 +49,12 @@ require_grep '\$\{API_PORT:-3443\}:\$\{API_PORT:-3443\}' docker-compose.yml
 require_grep '\$\{FILE_SERVER_PORT:-3000\}:\$\{FILE_SERVER_PORT:-3000\}' docker-compose.yml
 require_grep '\$\{ZEROTIER_DIST_DIR:-\./data/zerotier/dist\}:/app/dist' docker-compose.yml
 require_grep 'FILE_KEY=\$\{FILE_KEY:-\}' docker-compose.yml
+require_grep 'build:' docker-compose.dev.yml
+require_grep 'context: \.' docker-compose.dev.yml
+require_grep 'dockerfile: Dockerfile' docker-compose.dev.yml
+require_grep 'TAG: \$\{TAG:-actions\}' docker-compose.dev.yml
+require_absent 'xubiaolin/zerotier-planet' docker-compose.dev.yml
+require_absent '\$\{DOCKER_IMAGE' docker-compose.dev.yml
 
 require_grep 'path\.resolve' patch/http_server.js
 require_grep 'timingSafeEqual' patch/http_server.js
