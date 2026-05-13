@@ -40,7 +40,7 @@ for key in DOCKER_IMAGE IP_ADDR4 IP_ADDR6 ZT_PORT API_PORT FILE_SERVER_PORT FILE
 done
 
 require_grep '^\.env$' .gitignore
-require_grep '\$\{DOCKER_IMAGE:-xubiaolin/zerotier-planet:latest\}' docker-compose.yml
+require_grep '\$\{DOCKER_IMAGE:-xubiaolin/zerotier-planet-v2:latest\}' docker-compose.yml
 require_absent 'container_name:' docker-compose.yml
 require_absent '^CONTAINER_NAME=' .env.example
 require_grep '\$\{ZT_PORT:-9994\}:\$\{ZT_PORT:-9994\}/tcp' docker-compose.yml
@@ -53,7 +53,7 @@ require_grep 'build:' docker-compose.dev.yml
 require_grep 'context: \.' docker-compose.dev.yml
 require_grep 'dockerfile: Dockerfile' docker-compose.dev.yml
 require_grep 'TAG: \$\{TAG:-actions\}' docker-compose.dev.yml
-require_absent 'xubiaolin/zerotier-planet' docker-compose.dev.yml
+require_absent 'xubiaolin/zerotier-planet-v2' docker-compose.dev.yml
 require_absent '\$\{DOCKER_IMAGE' docker-compose.dev.yml
 
 require_grep 'path\.resolve' patch/http_server.js

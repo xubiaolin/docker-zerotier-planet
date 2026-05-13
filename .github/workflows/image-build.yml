@@ -1,26 +1,48 @@
-name: Docker Build on ZeroTier
+name: Build ZeroTier Planet Docker Image
 
 on:
   push:
     branches:
-      - master  # 当 master 分支有推送时触发
+      - master
   schedule:
-    - cron: '0 */6 * * *'  # 每6小时检查一次
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 18 * * *'  # 每天北京时间 02:00 自动构建
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE: xubiaolin/zerotier-planet-v2
+  ZEROTIER_REPO: zerotier/ZeroTierOne
 
 jobs:
-  check-and-build:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get latest Tailscale tag
+      - name: Get latest ZeroTier tag
         id: get_tag
+        shell: bash
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/zerotier/ZeroTierOne/tags | jq -r '.[0].name')
-          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          tags="$(git ls-remote --tags --refs "https://github.com/${ZEROTIER_REPO}.git" \
+            | awk -F/ '{print $NF}' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+          latest_tag="$(printf '%s\n' "${tags}" | sort -V | tail -n 1)"
+
+          if [ -z "${latest_tag}" ]; then
+            echo "No ZeroTier version tag found in ${ZEROTIER_REPO}" >&2
+            exit 1
+          fi
+
+          echo "latest_tag=${latest_tag}" >> "${GITHUB_OUTPUT}"
+          echo "Latest ZeroTier tag: ${latest_tag}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -35,9 +57,10 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:${{ steps.get_tag.outputs.latest_tag }}
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ steps.get_tag.outputs.latest_tag }}
           build-args: |
-            TAG=${{ steps.get_tag.outputs.latest_tag }} 
+            TAG=${{ steps.get_tag.outputs.latest_tag }}

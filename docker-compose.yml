@@ -1,6 +1,6 @@
 services:
   myztplanet:
-    image: ${DOCKER_IMAGE:-xubiaolin/zerotier-planet:latest}
+    image: ${DOCKER_IMAGE:-xubiaolin/zerotier-planet-v2:latest}
     restart: unless-stopped
     init: true
     security_opt:
