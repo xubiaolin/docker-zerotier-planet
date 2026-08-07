@@ -1,43 +1,128 @@
-name: Docker Build on ZeroTier
+name: Publish latest stable ZeroTier Planet image
 
 on:
   push:
     branches:
-      - master  # 当 master 分支有推送时触发
+      - master
   schedule:
-    - cron: '0 */6 * * *'  # 每6小时检查一次
-  workflow_dispatch:  # 允许手动触发
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      zerotier_tag:
+        description: Stable ZeroTier tag; empty means the latest GitHub release
+        required: false
+        type: string
+      force:
+        description: Rebuild even when the version tag already exists
+        default: false
+        required: false
+        type: boolean
+
+concurrency:
+  group: publish-zerotier-planet
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
-  check-and-build:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.version.outputs.commit }}
+      should_build: ${{ steps.existing.outputs.should_build }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get latest Tailscale tag
-        id: get_tag
+      - name: Resolve latest stable ZeroTier release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.zerotier_tag }}
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/zerotier/ZeroTierOne/tags | jq -r '.[0].name')
-          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          set -Eeuo pipefail
+          version=${REQUESTED_TAG:-$(gh api repos/zerotier/ZeroTierOne/releases/latest --jq .tag_name)}
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Refusing non-stable ZeroTier tag: $version" >&2
+            exit 1
+          fi
+          refs=$(git ls-remote https://github.com/zerotier/ZeroTierOne.git "refs/tags/$version" "refs/tags/$version^{}")
+          commit=$(awk '$2 ~ /\^\{\}$/ { print $1; exit }' <<<"$refs")
+          if [[ -z "$commit" ]]; then
+            commit=$(awk '{ print $1; exit }' <<<"$refs")
+          fi
+          test -n "$commit"
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "commit=$commit" >>"$GITHUB_OUTPUT"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
+      - name: Log in to Docker Hub for manifest lookup
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and push tagged version
-        uses: docker/build-push-action@v5
+      - name: Check whether the stable tag exists
+        id: existing
+        env:
+          FORCE: ${{ inputs.force }}
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+          should_build=true
+          if [[ "${{ github.event_name }}" == schedule && "$FORCE" != true ]]; then
+            if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+              should_build=false
+            fi
+          fi
+          echo "should_build=$should_build" >>"$GITHUB_OUTPUT"
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:${{ steps.get_tag.outputs.latest_tag }}
+          node-version: 20
+
+      - name: Install test tools
+        run: sudo apt-get update && sudo apt-get install --yes bats shellcheck shfmt
+
+      - name: Run release tests
+        run: ./tests/run.sh
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and publish immutable and stable tags
+        uses: docker/build-push-action@v6
+        with:
           build-args: |
-            TAG=${{ steps.get_tag.outputs.latest_tag }} 
+            PROJECT_REVISION=${{ github.sha }}
+            ZEROTIER_COMMIT=${{ needs.prepare.outputs.commit }}
+            ZEROTIER_VERSION=${{ needs.prepare.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          push: true
+          sbom: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet:${{ needs.prepare.outputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet:${{ needs.prepare.outputs.version }}-${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet:latest

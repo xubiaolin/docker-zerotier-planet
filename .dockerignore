@@ -1,0 +1,11 @@
+.git
+.github
+.env
+assets
+data
+docs
+scripts
+tests
+README.md
+README.en.md
+compose.yaml

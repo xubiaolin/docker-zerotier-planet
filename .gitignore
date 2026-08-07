@@ -2,3 +2,5 @@
 /data
 .DS_Store
 .vscode
+.env
+*.tar.gz

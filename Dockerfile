@@ -1,85 +1,111 @@
-FROM alpine:3.14 as builder
+# syntax=docker/dockerfile:1.7
 
-ENV TZ=Asia/Shanghai
-ARG TAG=actions
-ENV TAG=${TAG}
+ARG NODE_IMAGE=node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
-WORKDIR /app
-ADD ./patch/entrypoint.sh /app/entrypoint.sh
-ADD ./patch/http_server.js /app/http_server.js
-ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
+FROM ${NODE_IMAGE} AS build-toolchain
 
-# init tool
-RUN set -x\
-    && apk update\
-    && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake go \
-    && echo "env prepare success!"
+ENV DEBIAN_FRONTEND=noninteractive
 
-# make zerotier-one
-RUN set -x\
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
-    && source "$HOME/.cargo/env"\
-    && git clone https://github.com/zerotier/ZeroTierOne.git\
-    && cd ZeroTierOne\
-    && git checkout ${TAG}\
-    && echo "切换到tag:${TAG}"\
-    && make ZT_SYMLINK=1 \
-    && make -j\
-    && make install\
-    && echo "make success!"\
-    && zerotier-one -d || true\
-    && sleep 5s\
-    && (ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 || true)\
-    && echo "zerotier-one init success!"\
-    && cd /app/ZeroTierOne/attic/world \
-    && cp /app/patch/mkworld_custom.cpp .\
-    && mv mkworld.cpp mkworld.cpp.bak \
-    && mv mkworld_custom.cpp mkworld.cpp \
-    && sh build.sh \
-    && mkdir -p /var/lib/zerotier-one \
-    && mv mkworld /var/lib/zerotier-one\
-    && echo "mkworld build success!"
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        git \
+        libssl-dev \
+        pkg-config \
+        python3 \
+    && rm -rf /var/lib/apt/lists/*
 
+FROM build-toolchain AS zerotier-builder
 
+ARG ZEROTIER_VERSION=1.16.2
+ARG ZEROTIER_COMMIT=""
 
-#make ztncui 
-RUN set -x \
-    && mkdir /app -p \
-    &&  cd /app \
-    && git clone --progress https://github.com/key-networks/ztncui.git\
-    && cd /app/ztncui/src \
-    && npm config set registry https://registry.npmmirror.com\
-    && npm install -g node-gyp\
-    && npm install 
+WORKDIR /build
+RUN git clone --filter=blob:none --no-checkout https://github.com/zerotier/ZeroTierOne.git \
+    && cd ZeroTierOne \
+    && git fetch --depth=1 origin "refs/tags/${ZEROTIER_VERSION}:refs/tags/${ZEROTIER_VERSION}" \
+    && git checkout --detach "refs/tags/${ZEROTIER_VERSION}" \
+    && if [ -n "${ZEROTIER_COMMIT}" ]; then test "$(git rev-parse HEAD)" = "${ZEROTIER_COMMIT}"; fi \
+    && make -j"$(nproc)" ZT_NONFREE=1 ZT_SSO_SUPPORTED=0 \
+    && ./zerotier-one -v
 
-FROM alpine:3.14
+FROM build-toolchain AS ztncui-builder
 
-WORKDIR /app
+ARG ZTNCUI_COMMIT=1b2284864de48d2dcae22582fff122fe24909c3d
 
-ENV IP_ADDR4=''
-ENV IP_ADDR6=''
+WORKDIR /build
+RUN git clone --filter=blob:none https://github.com/key-networks/ztncui.git \
+    && cd ztncui \
+    && git checkout --detach "${ZTNCUI_COMMIT}" \
+    && test "$(git rev-parse HEAD)" = "${ZTNCUI_COMMIT}"
 
-ENV ZT_PORT=9994
-ENV API_PORT=3443
-ENV FILE_SERVER_PORT=3000
+COPY container/ztncui-package-lock.json /build/ztncui/src/package-lock.json
+RUN cd /build/ztncui/src \
+    && npm ci --omit=dev \
+    && npm audit --omit=dev --audit-level=critical \
+    && npm cache clean --force
 
-ENV GH_MIRROR="https://mirror.ghproxy.com/"
-ENV FILE_KEY=''
-ENV TZ=Asia/Shanghai
+FROM ${NODE_IMAGE} AS runtime
 
-COPY --from=builder /app/ztncui /bak/ztncui
-COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
+ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
-COPY --from=builder /app/http_server.js /app/http_server.js
+ARG ZEROTIER_VERSION=1.16.2
+ARG ZEROTIER_COMMIT=""
+ARG ZTNCUI_COMMIT=1b2284864de48d2dcae22582fff122fe24909c3d
+ARG PROJECT_REVISION=unknown
 
-RUN set -x \
-    && apk update \
-    && apk add --no-cache npm curl jq openssl\
-    && mkdir /app/config -p 
+LABEL org.opencontainers.image.title="Docker ZeroTier Planet" \
+      org.opencontainers.image.description="Self-hosted ZeroTier Planet and network controller" \
+      org.opencontainers.image.source="https://github.com/xubiaolin/docker-zerotier-planet" \
+      org.opencontainers.image.version="${ZEROTIER_VERSION}" \
+      org.opencontainers.image.revision="${PROJECT_REVISION}" \
+      io.zerotier.planet.zerotier.version="${ZEROTIER_VERSION}" \
+      io.zerotier.planet.zerotier.commit="${ZEROTIER_COMMIT}" \
+      io.zerotier.planet.ztncui.commit="${ZTNCUI_COMMIT}"
 
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        ca-certificates \
+        curl \
+        jq \
+        openssl \
+        supervisor \
+        tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 2222 planet \
+    && useradd --uid 2222 --gid planet --home-dir /nonexistent --shell /usr/sbin/nologin planet
 
-VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
+COPY --from=zerotier-builder /build/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
+RUN ln -s zerotier-one /usr/sbin/zerotier-cli \
+    && ln -s zerotier-one /usr/sbin/zerotier-idtool
 
-CMD ["/bin/sh","/app/entrypoint.sh"]
+COPY --from=ztncui-builder /build/ztncui/src /opt/ztncui/src
+RUN mv /opt/ztncui/src/etc /opt/ztncui/etc.defaults \
+    && ln -s /app/ztncui/state/etc /opt/ztncui/src/etc
+
+COPY container /opt/planet/container
+RUN find /opt/planet/container -type d -exec chmod 0755 {} + \
+    && find /opt/planet/container -type f -exec chmod 0644 {} + \
+    && chmod 0755 \
+        /opt/planet/container/entrypoint.sh \
+        /opt/planet/container/healthcheck.sh \
+        /opt/planet/container/supervisor-exit-on-fatal.sh \
+    && mkdir -p /app/config /app/dist /app/ztncui/state /var/lib/zerotier-one \
+    && chown -R planet:planet /app/config /app/dist /app/ztncui
+
+ENV ZEROTIER_VERSION=${ZEROTIER_VERSION} \
+    ZTNCUI_COMMIT=${ZTNCUI_COMMIT} \
+    CONFIG_PATH=/app/config \
+    DIST_PATH=/app/dist \
+    ZTNCUI_STATE_PATH=/app/ztncui/state \
+    ZEROTIER_PATH=/var/lib/zerotier-one
+
+EXPOSE 9994/tcp 9994/udp 3443/tcp 3000/tcp
+
+VOLUME ["/app/config", "/app/dist", "/app/ztncui", "/var/lib/zerotier-one"]
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=4 \
+    CMD ["/opt/planet/container/healthcheck.sh"]
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/planet/container/entrypoint.sh"]

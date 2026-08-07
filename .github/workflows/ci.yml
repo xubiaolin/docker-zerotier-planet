@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install shell test tools
+        run: sudo apt-get update && sudo apt-get install --yes bats shellcheck shfmt
+
+      - name: Run unit and static tests
+        run: ./tests/run.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          build-args: |
+            PROJECT_REVISION=${{ github.sha }}
+            ZEROTIER_VERSION=1.16.2
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+          platforms: linux/amd64
+          push: false
+          tags: zerotier-planet:test
+
+      - name: Run container smoke test
+        run: IMAGE=zerotier-planet:test ./tests/integration/container-smoke.sh
