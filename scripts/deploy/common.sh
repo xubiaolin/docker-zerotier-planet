@@ -110,7 +110,7 @@ usage() {
 
 命令：
   install          创建配置并启动服务
-  status           查看容器、端口和文件位置
+  status           查看容器、实际地址和下载链接
   upgrade          备份数据、拉取镜像并升级
   reconfigure      按 .env 重新生成 Planet/Moon
   reset-password   生成或设置新的 ztncui 管理密码

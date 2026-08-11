@@ -16,7 +16,7 @@ cd docker-zerotier-planet
 ./deploy.sh install
 ```
 
-脚本会创建 `.env`、启动容器并等待健康检查。新安装会生成随机 ztncui 管理密码并只显示一次。
+脚本会创建 `.env`、启动容器并等待健康检查。新安装会生成随机 ztncui 管理密码并只显示一次。安装完成后会展示实际生效的公网 IP、Planet 节点、管理后台地址，以及可直接使用的 Planet/Moon 下载 URL。
 
 常用命令：
 
@@ -46,7 +46,7 @@ docker compose up -d
 | `3443` | TCP | ztncui 管理界面 |
 | `3000` | TCP | Planet/Moon 文件下载 |
 
-Planet 和 Moon 位于 `data/zerotier/dist/`。下载密钥位于 `data/zerotier/config/file_server.key`；文件服务同时支持 `Authorization: Bearer <key>` 和旧的 `?key=<key>` 形式。
+Planet 和 Moon 位于 `data/zerotier/dist/`。下载密钥位于 `data/zerotier/config/file_server.key`；文件服务同时支持 `Authorization: Bearer <key>` 和旧的 `?key=<key>` 形式。运行 `./deploy.sh status` 可再次查看从持久化运行配置生成的完整地址；下载直链包含访问密钥，应按凭据保护。
 
 ## iOS / iPadOS 使用自定义 Planet
 

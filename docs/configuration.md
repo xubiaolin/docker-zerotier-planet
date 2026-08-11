@@ -19,6 +19,8 @@ Compose 默认读取项目根目录的 `.env`。容器解析配置的优先级�
 
 直接使用 Compose 时，首次生成的管理密码保存在 `config/ztncui.initial-password`；读取并登录后应删除该明文文件。`deploy.sh install` 会显示一次并自动删除它。
 
+`deploy.sh install` 完成时和 `deploy.sh status` 会优先读取上述持久化文件，因此自动探测得到的真实 IP 和实际运行端口也会出现在管理地址与下载 URL 中，而不是使用 `.env` 中的空值或占位符。IPv6 URL 会自动使用方括号格式。
+
 `ZT_PORT`、`IP_ADDR4` 和 `IP_ADDR6` 会进入签名后的 Planet/Moon。已初始化后修改这些值，普通启动会拒绝继续；编辑 `.env` 后运行：
 
 ```bash

@@ -16,7 +16,7 @@ cd docker-zerotier-planet
 ./deploy.sh install
 ```
 
-The installer creates `.env`, starts the container, and waits for its health check. A new installation generates a random ztncui administrator password and displays it once.
+The installer creates `.env`, starts the container, and waits for its health check. A new installation generates a random ztncui administrator password and displays it once. After startup it shows the effective public addresses, Planet endpoints, management URLs, and directly usable Planet/Moon download URLs.
 
 Common commands:
 
@@ -46,7 +46,7 @@ docker compose up -d
 | `3443` | TCP | ztncui management UI |
 | `3000` | TCP | Planet/Moon downloads |
 
-Generated artifacts are stored under `data/zerotier/dist/`. The download key is stored at `data/zerotier/config/file_server.key`. The file service accepts both `Authorization: Bearer <key>` and the legacy `?key=<key>` form.
+Generated artifacts are stored under `data/zerotier/dist/`. The download key is stored at `data/zerotier/config/file_server.key`. The file service accepts both `Authorization: Bearer <key>` and the legacy `?key=<key>` form. Run `./deploy.sh status` to print complete addresses generated from the persisted runtime configuration. Direct download URLs contain the access key and must be protected as credentials.
 
 ## Custom Planet on iOS / iPadOS
 

@@ -10,7 +10,7 @@
 curl -H "Authorization: Bearer $KEY" http://SERVER:3000/planet -o planet
 ```
 
-兼容的 `?key=` 形式可能进入浏览器历史、代理日志或聊天记录，应只在受控环境使用。
+兼容的 `?key=` 形式可能进入浏览器历史、代理日志或聊天记录，应只在受控环境使用。为了提供可直接下载的完整地址，`deploy.sh install` 和 `deploy.sh status` 会输出这种直链；终端输出和自动化日志也应按凭据保护。
 
 ## 网络暴露
 
