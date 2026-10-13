@@ -1,601 +1,292 @@
-🌐 Languages: [English](README.md) | [中文](README.zh.md)
-
-<a href="https://edgeone.ai/?from=github">
-  <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="Logo" /> 本项目的 CDN 加速和安全保护由腾讯 EdgeOne 赞助
-</a>
-
 # Docker ZeroTier Planet
 
-> 一键部署 ZeroTier Planet 服务器，支持 Docker 容器化部署
+[简体中文](README.md) · [English](README.en.md)
 
-## 📢 交流群
+使用 Docker 在 Linux 服务器上部署自己的 ZeroTier Planet，同时提供网络管理界面和 `planet` / `moon` 文件下载服务。适合希望自行管理 ZeroTier 根节点与网络的用户。
 
-### Telegram
-- **TG交流群**：https://t.me/+JduuWfhSEPdlNDk1
+> **先了解：**客户端需要替换 `planet` 文件才能使用自建 Planet；自建根节点不保证设备间一定直连，也不等于所有业务流量都经过或都不经过这台服务器。管理界面默认通过 **HTTP** 访问，部署后请尽快修改默认密码。
 
-### QQ Group
-- **1群**：692635772 
-- **2群**：785620313
-- **3群**：316239544
-- **4群**：1027678459
-- **5群**：651935808
+<a href="https://edgeone.ai/?from=github">
+  <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="EdgeOne Logo" /> 本项目的 CDN 加速和安全保护由腾讯 EdgeOne 赞助
+</a>
 
-## 📱 微信公众号
-![二维码](assets/wechat.png)
+## 广告
 
-## ✨ 功能特性
+- [雨云容器服务一键部署-买服务器上雨云](https://app.rainyun.com/apps/rca/store/6215?ref=220429)
+- [MyHeadScale-5台设备永久免费-不限流量](https://hs.bj.markxu.vip/?from=github)
+- [Bandwagonhost-CN2 优质线路](https://bandwagonhost.com/aff.php?aff=82099)
 
-- ✅ 支持 Linux/AMD64、Linux/ARM64 架构
-- 🐳 Docker 容器化部署
-- 📥 支持 URL 下载 planet、moon 配置
-- 🌐 可作为 Moon 或 Planet 服务器搭建
-- 🔧 简单易用的一键部署脚本
-- 📊 可视化 Web 管理界面
+## 交流与支持
 
-## 📋 目录
+- [Telegram 交流群](https://t.me/+JduuWfhSEPdlNDk1)
+- QQ 群：
+  - 692635772
+  - 785620313
+  - 316239544
+  - 1027678459
+  - 651935808
 
-- [0. 托管服务](#0-托管服务)
-- [1. ZeroTier 介绍](#1-zerotier-介绍)
-- [2. 为什么要自建 PLANET 服务器](#2-为什么要自建-planet-服务器)
-- [3. 开始安装](#3-开始安装)
-  - [3.1 环境准备](#31-环境准备)
-  - [3.2 下载项目源码](#32-下载项目源码)
-  - [3.3 执行安装脚本](#33-执行安装脚本)
-  - [3.4 下载 planet 文件](#34-下载-planet-文件)
-  - [3.5 新建网络](#35-新建网络)
-- [4. 客户端配置](#4-客户端配置)
-  - [4.1 Windows 配置](#41-windows-配置)
-  - [4.2 Linux 客户端](#42-linux-客户端)
-  - [4.3 安卓客户端配置](#43-安卓客户端配置)
-  - [4.4 MacOS 客户端配置](#44-macos-客户端配置)
-  - [4.5 OpenWRT 客户端配置](#45-openwrt-客户端配置)
-  - [4.6 iOS 客户端配置](#46-ios-客户端配置)
-- [5. 管理面板 SSL 配置](#5-管理面板-ssl-配置)
-- [6. 卸载](#6-卸载)
-- [7. 常见问题](#7-常见问题)
-- [8. 开发计划](#8-开发计划)
-- [9. 风险声明](#9-风险声明)
-- [10. 类似项目](#10-类似项目)
-- [11. 捐助和支持](#11-捐助和支持)
-- [12. 鸣谢](#12-鸣谢)
+如果项目对你有帮助，也可以支持该项目
 
----
+<img src="assets/donate.png" width="180">
 
-## 0. 托管服务
+微信公众号：
 
-### 0.1 自运营容器服务
+<img src="assets/wx_qrcode_pub.jpg" width="180" alt="微信公众号二维码" />
 
-**寻找便捷的解决方案？**
+## 阅读导航
 
-我们提供专业的托管服务：
+- [广告](#广告)
+- [交流与支持](#交流与支持)
+- [快速开始](#快速开始)：准备服务器、部署容器、创建网络
+- [客户端接入](#客户端接入)：分平台替换 `planet` 并加入网络
+- [运维与安全](#运维与安全)：数据备份、更新、卸载、Compose 与 HTTPS
+- [常见问题](#常见问题)：连接、端口、IP 变更等
+- [项目与社区](#项目与社区)：开发计划、风险声明、致谢与参考资料
 
-| 服务项目 | 详情 |
-|---------|------|
-| **试用期** | 免费试用 3 天 |
-| **年费** | 仅需 99￥ |
-| **带宽** | 高速带宽 300Mbit |
-| **流量政策** | 每月 100G 转发流量，P2P 连接后不计流量，超出后每 10 元 100G |
-| **机房** | 优质线路：宁波电信机房 |
-| **联系方式** | Telegram：[https://t.me/uxkram](https://t.me/uxkram) 或加入 QQ 群咨询群主 |
+## 快速开始
 
-**测速图如下：**
+### 1. 准备服务器
 
-<img src="./assets/nb-speed-test.png" width="800" alt="宁波机房测速图" align="center" />
+准备一台有**公网 IPv4 地址**的 Linux 服务器，安装 Docker 和 Git。部署脚本面向 Linux；镜像构建脚本面向 `linux/amd64` 和 `linux/arm64`。尚未安装 Docker 时，可参考 [Docker 官方安装文档](https://docs.docker.com/engine/install/)。
 
-### 0.2 雨云容器服务
+在服务器防火墙和云平台安全组中放行实际使用的端口（安装时可按提示修改默认值）：
 
-[![通过雨云一键部署](https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg)](https://app.rainyun.com/apps/rca/store/6215?ref=220429)
+| 默认端口 | 协议 | 用途 |
+| --- | --- | --- |
+| `9994` | TCP、UDP | ZeroTier 通信 |
+| `3443` | TCP | Web 管理界面，默认是 **HTTP**，不是 HTTPS |
+| `3000` | TCP | `planet` / `moon` 文件下载服务；仅在需要远程下载时对外开放 |
 
-### 0.3 微信公众号
+> 不建议将管理界面或文件下载入口直接暴露给不受信任的访问者。下载链接中的密钥也应当按凭据保管。
 
-欢迎关注公众号获取最新动态和技术分享
+### 2. 运行部署脚本
 
-<img src="./assets/wx_qrcode_pub.jpg" width="300" alt="微信公众号二维码" align="center" />
-
----
-
-## 1. ZeroTier 介绍
-
-`ZeroTier` 是一款强大的 P2P VPN 工具，它能让你在互联网上搭建属于自己的虚拟局域网。通过它，你可以轻松实现远程访问家中设备的需求 - 比如在公司用手机直接访问家里的 NAS。最重要的是，设备之间是点对点直连的，无需经过中转服务器，既保证了速度，又提升了安全性。
-
-### 工作原理
-
-通过 `ZeroTier One` 客户端，在不同设备（如笔记本、手机、服务器等）之间建立 P2P 连接，即使这些设备都在 NAT 后面也没问题。它使用了 STUN 等技术，可以穿透大多数类型的 NAT，实现设备间的直接通信。如果实在无法直连，才会通过中转服务器进行通信。
-
-简单来说，`ZeroTier` 就像是一个跨越互联网的"虚拟交换机"，让分布在世界各地的设备，都能像在同一个局域网内一样方便地相互访问。
-
-![zerotier](assets/zerotier-network.png)
-
-### ZeroTier 网络中的关键概念
-
-| 概念 | 说明 |
-|------|------|
-| **PLANET**（行星服务器） | ZeroTier 网络的核心根服务器，负责网络发现和初始连接。相当于整个网络的"中枢" |
-| **MOON**（卫星服务器） | 用户可以自建的私有根服务器。它可以作为区域性的代理节点，帮助就近的设备更快地建立连接，提升网络性能 |
-| **LEAF**（叶子节点） | 所有接入 ZeroTier 网络的终端设备，如电脑、手机、服务器等。这些设备通过 PLANET 和 MOON 的协调来相互发现和通信 |
-
-本教程将指导您搭建一个私有的 PLANET 服务器，让您完全掌控自己的 ZeroTier 网络。
-
----
-
-## 2. 为什么要自建 PLANET 服务器
-
-自建 PLANET 服务器有以下几个重要原因：
-
-### 🚀 性能优势
-- **提升网络稳定性**：官方服务器位于海外，国内用户访问延迟高且不稳定。自建服务器可以大幅提升连接质量
-- **加快连接速度**：本地化的 PLANET 服务器可以更快地帮助设备建立 P2P 连接
-
-### 🔒 安全优势
-- **增强网络控制**：自建服务器让您完全掌控网络配置，可以根据需求进行优化调整
-- **提高安全性**：私有化部署意味着网络流量不经过第三方服务器，更加安全可靠
-
-### 💪 可靠性优势
-- **降低依赖**：避免因官方服务器故障或网络波动影响您的业务正常运行
-
----
-
-## 3. 开始安装
-
-### 3.1 环境准备
-
-在开始安装之前，请确保您的服务器满足以下条件：
-
-#### 服务器要求
-- ✅ 拥有公网 IP 地址
-- ✅ 需开放以下端口：
-  - `3443/tcp` (管理面板，根据实际情况调整)
-  - `9994/tcp` (ZeroTier 通信，根据实际情况调整)
-  - `9994/udp` (ZeroTier 通信，根据实际情况调整)
-
-#### 软件依赖
-- ✅ Docker (容器运行环境)
-- ✅ Git (获取项目代码)
-
-#### 系统要求
-推荐使用较新的 Linux 发行版：
-- Debian 12
-- Ubuntu 20.04+
-- Rocky Linux
-- 其他同类系统
-
-#### 3.1.1 安装 Git
-
-```bash
-# Debian/Ubuntu 等
-apt update && apt install git -y 
-
-# CentOS 等
-yum update && yum install git -y 
-```
-
-#### 3.1.2 安装 Docker
-
-```bash
-curl -fsSL https://get.docker.com | bash
-```
-
-> **注意**：如果网络问题导致无法安装，可以使用国内镜像安装，请参考：[安装 Docker](https://help.aliyun.com/zh/ecs/use-cases/install-and-use-docker#33f11a5f1800n)
-
-#### 3.1.3 启动 Docker
-
-```bash
-service docker start
-```
-
-#### 3.1.4 配置 Docker 加速镜像（可选）
-
-```bash
-sudo mkdir -p /etc/docker
-
-sudo tee /etc/docker/daemon.json > /dev/null <<EOF
-{
-  "registry-mirrors": [
-    "https://hub.bwg.imoyuapp.win"
-  ]
-}
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-```
-
-### 3.2 下载项目源码
-
-**官方地址：**
 ```bash
 git clone https://github.com/xubiaolin/docker-zerotier-planet.git
-```
-
-**加速地址：**
-```bash
-git clone https://ghproxy.imoyuapp.win/github.com/xubiaolin/docker-zerotier-planet.git
-```
-
-### 3.3 执行安装脚本
-
-1. **进入项目目录：**
-```bash
 cd docker-zerotier-planet
-```
-
-2. **运行部署脚本：**
-```bash
 ./deploy.sh
 ```
 
-3. **根据提示选择操作：**
-```
-欢迎使用 zerotier-planet 脚本，请选择需要执行的操作：
-1. 安装
-2. 卸载
-3. 更新
-4. 查看信息
-5. 退出
-请输入数字：
-```
+按提示选择 **1. 安装**，依次填写 ZeroTier、管理界面和文件下载端口，并选择自动获取或手动填写服务器公网 IP。
 
-> **提示**：整个脚本预计需要 1-3 分钟，具体时间取决于网络与机型
+部署脚本使用 `docker run` 创建容器；仓库没有自带的 Compose 配置文件。
 
-4. **安装成功标志：**
+**已有部署不要直接选择重新安装：该流程会删除当前项目目录下的 `data/zerotier/`，请先备份，升级请选“更新”。**若镜像拉取失败，先确认 Docker 可以访问镜像仓库，不要直接覆盖服务器现有的 Docker 配置。
 
-![install-finish](./assets/install_finish.png)
+请在项目目录运行脚本：数据路径按当前工作目录计算。
 
-### 3.4 下载 planet 文件
-
-脚本运行完成后，会在 `./data/zerotier/dist` 目录下生成 `planet` 和 `moon` 配置文件。
-
-您可以通过以下两种方式获取这些文件：
-
-1. **通过安装完成后提供的 URL 直接下载**
-2. **使用 scp 或其他文件传输工具从服务器下载**
-
-> **重要**：请妥善保存这些文件，后续配置客户端时会用到。
-
-### 3.5 新建网络
-
-#### 3.5.1 访问管理界面
-
-访问 `http://ip:3443` 进入 controller 页面
-
-![ui](assets/ztncui.png)
-
-**默认登录信息：**
-- 用户名：`admin`
-- 密码：`password`
-
-#### 3.5.2 创建网络
-
-1. 登录后点击 "Networks" 菜单
-2. 点击 "Add Network" 按钮创建新网络
-3. 输入一个便于识别的网络名称，其他选项可保持默认
-4. 点击 "Create Network" 按钮完成创建
-
-![ui](assets/ztncui_create_net.png)
-
-创建成功后系统会自动生成一个网络 ID，这个 ID 在后续客户端配置时会用到，请记录下来。
-
-![ui](assets/ztncui_net_id.png)
-
-#### 3.5.3 分配网络 IP
-
-1. 选中 "Easy Setup"
-![assign_id](./assets/easy_setup.png)
-
-2. 生成 IP 范围
-![ip_addr](./assets/network_addr.png)
-
----
-
-## 4. 客户端配置
-
-ZeroTier 支持多种主流操作系统的客户端，包括：
-- Windows
-- macOS 
-- Linux
-- Android
-
-### 4.1 Windows 配置
-
-#### 步骤 1：下载客户端
-首先去 ZeroTier 官网下载一个 ZeroTier 客户端
-
-#### 步骤 2：替换 planet 文件
-将 `planet` 文件覆盖粘贴到 `C:\ProgramData\ZeroTier\One` 中（这个目录是个隐藏目录，需要允许查看隐藏目录才行）
-
-#### 步骤 3：重启服务
-1. 按 `Win + S` 搜索 "服务"
-![ui](assets/service.png)
-
-2. 找到 ZeroTier One，并且重启服务
-![ui](assets/restart_service.png)
-
-#### 步骤 4：加入网络
-使用管理员身份打开 PowerShell，执行如下命令：
-
-```powershell
-PS C:\Windows\system32> zerotier-cli.bat join 网络id
-200 join OK
-PS C:\Windows\system32>
-```
-
-> **注意**：网络 ID 就是在网页里面创建的那个网络 ID
-
-#### 步骤 5：授权设备
-登录管理后台可以看到有个新的客户端，勾选 `Authorized` 即可
-
-![ui](assets/join_net.png)
-
-IP assignment 里面会出现 ZeroTier 的内网 IP
-
-![ip](./assets/allow_devices.png)
-
-#### 步骤 6：验证连接
-执行如下命令验证连接状态：
-
-```powershell
-PS C:\Windows\system32> zerotier-cli.bat peers
-200 peers
-<ztaddr>   <ver>  <role> <lat> <link> <lastTX> <lastRX> <path>
-fcbaeb9b6c 1.8.7  PLANET    52 DIRECT 16       8994     1.1.1.1/9993
-fe92971aad 1.8.7  LEAF      14 DIRECT -1       4150     2.2.2.2/9993
-PS C:\Windows\system32>
-```
-
-可以看到有一个 `PLANET` 和 `LEAF` 角色，连接方式均为 `DIRECT`（直连）
-
-到这里就加入网络成功了！
-
-### 4.2 Linux 客户端
-
-**配置步骤：**
-
-1. 安装 Linux 客户端软件
-2. 进入目录 `/var/lib/zerotier-one`
-3. 替换目录下的 `planet` 文件
-4. 重启 `zerotier-one` 服务：`service zerotier-one restart`
-5. 加入网络：`zerotier-cli join 网络id`
-6. 管理后台同意加入请求
-7. 执行 `zerotier-cli peers` 可以看到 `PLANET` 角色
-
-### 4.3 安卓客户端配置
-
-推荐使用 [Zerotier 非官方安卓客户端](https://github.com/kaaass/ZerotierFix)
-
-### 4.4 MacOS 客户端配置
-
-**配置步骤：**
-
-1. 进入 `/Library/Application\ Support/ZeroTier/One/` 目录，并替换目录下的 `planet` 文件
-2. 重启 ZeroTier-One：`cat /Library/Application\ Support/ZeroTier/One/zerotier-one.pid | sudo xargs kill`
-3. 加入网络：`zerotier-cli join 网络id`
-4. 管理后台同意加入请求
-5. 执行 `zerotier-cli peers` 可以看到 `PLANET` 角色
-
-### 4.5 OpenWRT 客户端配置
-
-**配置步骤：**
-
-1. 安装 ZeroTier 客户端
-2. 进入目录 `/etc/config/zero/planet`
-3. 替换目录下的 `planet` 文件
-4. 在 OpenWRT 网页后台先关闭 ZeroTier 服务，再开启 ZeroTier 服务
-5. 在 OpenWRT 网页后台加入网络
-6. 管理后台同意加入请求
-7. 执行 `ln -s /etc/config/zero /var/lib/zerotier-one`
-8. 执行 `zerotier-cli peers` 可以看到 `PLANET` 角色
-
-### 4.6 iOS 客户端配置
-
-**方案一：越狱方案**
-越狱后安装 ZeroTier，然后替换 `planet` 文件
-
-**方案二：WireGuard 方案**
-使用 WireGuard 接入到 ZeroTier 网络
-
----
-
-## 5. 管理面板 SSL 配置
-
-管理面板的 SSL 支持需要自行配置，参考 Nginx 配置如下：
-
-```nginx
-upstream zerotier {
-  server 127.0.0.1:3443;
-}
-
-server {
-  listen 443 ssl;
-  server_name {CUSTOM_DOMAIN}; # 替换自己的域名
-
-  # SSL 证书地址
-  ssl_certificate    pem 或 crt 文件的路径;
-  ssl_certificate_key key 文件的路径;
-
-  # SSL 验证相关配置
-  ssl_session_timeout  5m;    # 缓存有效期
-  ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;    # 加密算法
-  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;    # 安全链接可选的加密协议
-  ssl_prefer_server_ciphers on;   # 使用服务器端的首选算法
-
-  location / {
-    proxy_pass http://zerotier;
-    proxy_set_header HOST $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-}
-
-server {
-    listen       80;
-    server_name  {CUSTOM_DOMAIN}; # 替换自己的域名
-    return 301 https://$server_name$request_uri;
-}
-```
-
----
-
-## 6. 卸载
+部署后可检查容器和日志：
 
 ```bash
-docker rm -f zerotier-planet
+docker ps --filter name=myztplanet
+docker logs myztplanet
 ```
 
----
+### 3. 创建网络并下载文件
 
-## 7. 常见问题
+1. 打开 `http://<服务器公网 IP>:3443`（若修改了管理端口，请使用实际端口）并登录。**默认用户名为 `admin`，默认密码为 `password`；首次登录后立即修改密码。**
+2. 在 **Networks** 页面点击 **Add Network**，填写名称并创建网络，记下生成的 **Network ID**。需要自动分配虚拟 IP 时，在网络设置中使用 **Easy Setup** 配置地址段。
+3. 从部署完成时脚本给出的下载地址，或从服务器的 `./data/zerotier/dist/` 获取 `planet` 文件，将它分发给需要连接此私有 Planet 的客户端。`moon` 文件同样生成在该目录中，本项目已把节点自身配置为 moon，其他节点按需下载使用。
 
-### Q1: 为什么我 ping 不通目标机器？
-**A:** 请检查防火墙设置，`Windows` 系统需要允许 `ICMP` 入站，`Linux` 同理
+![管理界面与网络列表](assets/ztncui.png)
 
-### Q2: iOS 客户端怎么用？
-**A:** iOS 客户端插件在这里，设备需要越狱：https://github.com/lemon4ex/ZeroTieriOSFix
+> **请备份整个 `data/zerotier/` 目录。**其中不仅有供客户端下载的文件，还包含节点身份、签名密钥、控制器和管理界面数据。不要将该目录或下载密钥提交到公开仓库。
 
-### Q3: 为什么看不到官方的 Planet？
-**A:** 该项目剔除了官方服务器，只保留了自定义的 Planet 节点
+### 这套部署包含什么
 
-### Q4: 我更换了 IP 需要怎么处理？
-**A:** 如果 IP 更换了，则需要重新部署，相当于全新部署
+| 组件 | 作用 |
+| --- | --- |
+| Planet | ZeroTier 根节点，帮助客户端发现网络；客户端需使用本项目生成的 `planet` 文件 |
+| Moon | 部署时会把本节点同时配置为 moon，并在 `dist` 目录生成 `.moon` 文件，供其他节点按需使用 |
+| Controller / Web 管理界面 | 创建网络、授权成员并管理地址分配 |
+| 文件下载服务 | 提供生成文件的下载入口；下载密钥需要妥善保存 |
 
-### Q5: PVE lxc 容器没有创建网卡？
-**A:** 需要修改 lxc 容器的配置，同时 lxc 容器需要取消勾选"无特权"
+ZeroTier 会尝试让节点直接通信；是否能够直连仍取决于双方网络、NAT 和防火墙环境。自建 Planet 不能替代端到端连通性排查。
 
-配置文件位置在 `/etc/pve/lxc/{ID}.conf`
+## 客户端接入
 
-**Proxmox 7.0 之前的版本添加以下内容：**
+**通用流程：**在客户端安装 ZeroTier → 备份原有 `planet`（如果存在）→ 放入服务器生成的新文件 → 重启 ZeroTier 服务 → 加入创建的 Network ID → 在管理界面授权设备 → 检查分配地址和连接状态。
+
+下面命令中的 `0123456789abcdef` 仅作为 **Network ID 示例**，执行时请替换为自己创建的 ID。不同发行版或客户端版本的安装路径可能不同，请以实际安装位置为准。
+
+### Windows
+
+1. 安装 [ZeroTier One 客户端](https://www.zerotier.com/download/)，将生成的 `planet` 放到 `C:\ProgramData\ZeroTier\One\planet`（`ProgramData` 默认隐藏）；覆盖前备份原文件。
+2. 在 Windows“服务”中重启 **ZeroTier One**，再在可调用 `zerotier-cli.bat` 的管理员终端加入网络：
+
+   ```powershell
+   zerotier-cli.bat join 0123456789abcdef
+   zerotier-cli.bat peers
+   ```
+
+3. 在管理界面的成员列表中勾选该设备的 **Authorized**，确认它获得虚拟 IP。`peers` 输出中可查看 Planet 和其他节点的连接状态；**Planet 为 DIRECT 不代表所有设备之间也都直连**。
+
+![Windows 服务管理](assets/restart_service.png)
+
+### Linux
+
+将 `planet` 备份并复制到 ZeroTier 数据目录（通常是 `/var/lib/zerotier-one/planet`），重启服务，然后加入网络：
+
+```bash
+sudo cp planet /var/lib/zerotier-one/planet
+sudo systemctl restart zerotier-one
+sudo zerotier-cli join 0123456789abcdef
+sudo zerotier-cli peers
 ```
-lxc.cgroup.devices.allow: c 10:200 rwm
-lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+
+覆盖前请先备份目标路径已有的文件；如果系统没有使用 systemd，请使用该系统对应的服务管理命令。最后回到管理界面授权该设备。
+
+### macOS
+
+将 `planet` 备份并放入 `/Library/Application Support/ZeroTier/One/`，重启 ZeroTier One 后加入网络，并在管理界面授权。路径中包含空格；使用终端操作时需要正确引用路径。服务重启方式以当前安装版本为准。
+
+### OpenWrt
+
+先确认所安装的 ZeroTier 插件是否支持自定义 `planet`，以及它实际使用的数据目录。部分插件使用 `/etc/config/zero/planet`；放入文件后在 OpenWrt 管理界面重启 ZeroTier，再加入网络并授权设备。**不要在未核实目录的情况下直接创建或覆盖系统软链接。**
+
+### Android 与 iOS
+
+- **Android：**可参考支持自定义 Planet 的第三方客户端 [ZerotierFix](https://github.com/kaaass/ZerotierFix)，使用前请自行检查其版本兼容性及维护状态。
+- **iOS：**替换 `planet` 需要客户端或系统提供相应能力；可了解 [ZeroTieriOSFix](https://github.com/lemon4ex/ZeroTieriOSFix) 等非官方方案，其适用条件和风险由使用者自行评估。**WireGuard 是另一种协议，不能直接作为 ZeroTier 客户端加入本项目创建的网络。**
+
+## 运维与安全
+
+### 数据目录与备份
+
+部署脚本将以下宿主机目录挂载进容器；备份时应保留整个 `data/zerotier/`，而不只是 `planet` 文件：
+
+| 宿主机路径 | 用途 |
+| --- | --- |
+| `data/zerotier/dist/` | 导出的 `planet` / `moon` 文件 |
+| `data/zerotier/ztncui/` | 管理界面配置与登录数据 |
+| `data/zerotier/one/` | ZeroTier 身份与控制器数据 |
+| `data/zerotier/config/` | 生成 Planet 所需的配置和密钥 |
+
+**更新前先备份。**运行 `./deploy.sh` 并选择“更新”会保留已挂载的数据，但会重建容器；选择重新“安装”前要特别注意数据清理提示，不能把它当作无损升级。部署脚本在数据目录已有内容时不会自动重新生成 `planet` / `moon`；**只修改 IP 或端口环境变量，不会更新已生成的节点信息和客户端文件。**
+
+### 保护管理界面和下载入口
+
+- 首次登录立即修改默认密码；管理界面默认使用 `http://`，`3443` 只是端口号，**不表示已启用 TLS**。
+- 使用防火墙限制管理端口的访问来源；对外提供管理界面时，建议由 Nginx 等反向代理终止 HTTPS。
+- 下载链接和相关密钥不要公开传播。文件服务使用 `SECRET_KEY` 作为下载密钥；如果没有固定该值，容器重启后会生成新密钥，旧下载链接随之失效。镜像中的 `FILE_KEY` **不是**文件服务实际读取的变量。
+
+以下示例假设 Nginx 与容器运行在同一台主机，证书已自行准备，且 `3443` 是实际映射的管理端口。还应通过防火墙限制对 `3443` 的直接公网访问：
+
+```nginx
+server {
+    listen 80;
+    server_name planet.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name planet.example.com;
+
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://127.0.0.1:3443;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
-**Proxmox 7.0 之后的版本添加以下内容：**
-```
-lxc.cgroup2.devices.allow: c 10:200 rwm
-lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
-```
+### 使用 Docker Compose（手动方式）
 
-### Q6: 管理后台忘记密码怎么办？
-**A:** 执行 `./deploy.sh`，选择重置密码即可
-
-### Q7: 为什么连不上 planet？
-**A:** 请检查防火墙，如果是阿里云、腾讯云用户，需要在对应平台后台防火墙放行端口。Linux 机器上也要放行，如果安装了 ufw 等防火墙工具。
-
-### Q8: 如何判断是直连还是中转？
-**A:** 管理员权限执行终端，运行 `zerotier-cli peers`
-
-```
-<ztaddr>   <ver>  <role> <lat> <link>   <lastTX> <lastRX> <path>
-69c0d507d0 -      LEAF      -1 RELAY
-93caa675b0 1.12.2 PLANET  -894 DIRECT   4142     4068     110.42.99.46/9994
-ab403e2074 1.10.2 LEAF      -1 RELAY
-```
-
-如果你的 ztaddr 是 `RELAY`，就说明是中转
-
-### Q9: 为什么我的 ZeroTier 传输不稳定？
-**A:** 由于 ZeroTier 使用的是 UDP 协议，部分地区可能对 UDP 进行了 QoS，可以考虑使用 OpenVPN。
-
-### Q10: 支持域名吗？
-**A:** 暂不支持
-
-### Q11: ARM 服务器可以搭建吗？
-**A:** 可以
-
-### Q12: 支持 docker-compose 启动部署吗？
-**A:** 支持，参考 docker-compose 文件如下：
+仓库**没有附带** `compose.yaml`。如果不使用交互式部署脚本，可将以下示例保存为 `compose.yaml`，填入自己的公网 IPv4 和足够长的随机 `SECRET_KEY` 后，在该文件所在目录运行 `docker compose up -d`：
 
 ```yaml
-version: '3'
-
 services:
   myztplanet:
     image: xubiaolin/zerotier-planet:latest
-    container_name: ztplanet
+    container_name: myztplanet
+    restart: unless-stopped
     ports:
-      - 9994:9994
-      - 9994:9994/udp
-      - 3443:3443
-      - 3000:3000
+      - "9994:9994/tcp"
+      - "9994:9994/udp"
+      - "3443:3443/tcp"
+      - "3000:3000/tcp"
     environment:
-      - IP_ADDR4=[IPV4IP ADDRESS]
-      - IP_ADDR6=
-      - ZT_PORT=9994
-      - API_PORT=3443
-      - FILE_SERVER_PORT=3000
+      IP_ADDR4: "203.0.113.10" # 替换为服务器公网 IPv4
+      IP_ADDR6: "" # 留空时容器仍会尝试自动获取公网 IPv6
+      ZT_PORT: "9994"
+      API_PORT: "3443"
+      FILE_SERVER_PORT: "3000"
+      SECRET_KEY: "replace-with-a-long-random-secret"
     volumes:
       - ./data/zerotier/dist:/app/dist
       - ./data/zerotier/ztncui:/app/ztncui
       - ./data/zerotier/one:/var/lib/zerotier-one
       - ./data/zerotier/config:/app/config
-    restart: unless-stopped
 ```
 
----
+> 示例端口与容器环境变量保持一致；如果修改监听端口，请同步修改映射和防火墙规则。**不要把填有真实公网 IP、下载密钥或私密配置的 Compose 文件提交到公开仓库。**手动 Compose 部署不提供 `deploy.sh` 的交互流程，遇到问题请检查 `docker logs myztplanet`。
 
-## 8. 开发计划
+### 卸载
 
-🥰 您的捐助可以让开发计划的速度更快 🥰
+在项目目录运行 `./deploy.sh`，根据菜单提示选择“卸载”。若手动管理容器，可执行 `docker rm -f myztplanet`；**这只删除容器，不等于清除宿主机的 `data/zerotier/` 数据**。删除数据前请先核实目录内容并完成备份。
 
-- [ ] 多 planet 支持
-- [x] 3443 端口自定义支持
-- [ ] planet 和 controller 分离部署
+## 常见问题
 
----
+### 为什么无法连接自建 Planet？
 
-## 9. 风险声明
+先核对客户端是否使用**当前部署生成的** `planet` 并已重启 ZeroTier；再检查服务器公网 IP，以及 `9994/tcp`、`9994/udp` 的容器端口映射、服务器防火墙和云平台安全组。自定义过端口时，以实际配置为准。
 
-本项目仅供学习和研究使用，不鼓励用于商业用途。我们不对任何因使用本项目而导致的任何损失负责。
+### 已加入网络，为什么仍 ping 不通其他设备？
 
----
+确认两端都已加入**同一个 Network ID**、在管理界面获得授权并分配了地址；随后检查目标设备操作系统防火墙是否允许 ICMP 和所需业务端口。不能仅凭 `join OK` 判断网络已经可用。
 
-## 10. 类似项目
+### 如何判断直连还是中转？
+
+在客户端运行 `zerotier-cli peers`，查看目标节点对应的连接状态。`DIRECT` 表示该条连接直连，`RELAY` 表示该条连接经中转；连接到 Planet 为 `DIRECT` 并不保证到其他 LEAF 也直连。
+
+### 为什么看不到 ZeroTier 官方 Planet？
+
+客户端替换为本项目生成的 `planet` 后，根节点列表指向自建 Planet，不会同时显示官方 Planet。请确认使用该文件是你的预期操作。
+
+### 服务器公网 IP 或通信端口变了怎么办？
+
+备份整个 `data/zerotier/` 后重新规划部署，并生成与新地址相符的 `planet` 文件，然后重新分发给客户端。已有数据非空时，**仅重启容器或改环境变量不会重生成文件**；重新安装可能删除旧数据和身份，操作前务必备份。
+
+### 忘记管理密码怎么办？
+
+在项目目录运行 `./deploy.sh`，选择菜单中的“重置密码”。脚本会将管理界面密码恢复为默认值 `password` 并重启容器；登录后立即更换密码。不要为重置密码删除 `data/zerotier/`，其中还保存着节点和网络数据。
+
+### 支持域名或 ARM 服务器吗？
+
+管理界面可以通过域名与反向代理访问；Planet 生成逻辑使用 `IP_ADDR4` / `IP_ADDR6` 填写节点地址，不能简单用域名替代 IP。镜像构建脚本包含 `linux/arm64` 和 `linux/amd64`，使用前请确认所拉取的镜像包含对应架构。
+
+### PVE LXC 容器内没有创建虚拟网卡怎么办？
+
+ZeroTier 需要访问 TUN 设备。请按当前 Proxmox / LXC 版本核对容器的 TUN 设备映射、权限和网络配置；修改特权模式或放宽设备权限会改变安全边界，不建议在不了解影响时直接套用旧版配置片段。
+
+## 项目与社区
+
+### 开发计划
+
+- [ ] 多 Planet 支持
+- [x] 自定义管理界面端口
+- [ ] Planet 与 Controller 分离部署
+
+### 风险声明
+
+本项目用于学习和研究。自行部署需要维护服务器、凭据和客户端配置；请评估安全与可用性风险，并遵守适用的法律及服务条款。项目维护者不对使用本项目产生的损失承担责任。
+
+### 致谢
+
+感谢以下支持项目的朋友（按原名单顺序）：
+
+随性、我、你好、Calvin、小猪猪的饲养员、情若犹在、天天星期天、啊乐、夏末秋至、\*\*忠、岸芷汀兰、Kimi Chen、匿名、阳光报告旷课、濂溪先生、Water、匿名、匿名、陆、精钢葫芦娃、唯、王小新、匿名、Duck不必。
+
+### 相关项目与参考资料
 
 - [WireGuard 一键脚本](https://github.com/xubiaolin/wireguard-onekey)
-
----
-
-## 11. 捐助和支持
-
-如果觉得本项目对您有帮助，欢迎通过扫描下方赞赏码捐助项目 :)
-
-<img src="assets/donate.png" alt="donate" width="400" height="400" />
-
----
-
-## 12. 鸣谢
-
-感谢以下网友投喂，你们的支持和鼓励是我不懈更新的动力
-
-**按时间顺序排序：**
-- 随性
-- 我
-- 你好
-- Calvin
-- 小猪猪的饲养员
-- 情若犹在
-- 天天星期天
-- 啊乐
-- 夏末秋至
-- **忠
-- 岸芷汀兰
-- Kimi Chen
-- 匿名
-- 阳光报告旷课
-- 濂溪先生
-- Water
-- 匿名
-- 匿名
-- 陆
-- 精钢葫芦娃
-- 唯
-- 王小新
-- 匿名
-- Duck不必
-
----
-
-## 📚 参考链接
-
-- [ZeroTier-虚拟局域网详解](https://www.glimmer.ltd/2021/3299983056/)
-- [五分钟自建 ZeroTier 的 Planet/Controller](https://v2ex.com/t/799623)
+- [ZeroTier 虚拟局域网详解](https://www.glimmer.ltd/2021/3299983056/)
+- [五分钟自建 ZeroTier 的 Planet / Controller](https://v2ex.com/t/799623)
