@@ -7,7 +7,7 @@
 > **先了解：**客户端需要替换 `planet` 文件才能使用自建 Planet；自建根节点不保证设备间一定直连，也不等于所有业务流量都经过或都不经过这台服务器。管理界面默认通过 **HTTP** 访问，部署后请尽快修改默认密码。
 
 <a href="https://edgeone.ai/?from=github">
-  <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="EdgeOne Logo" /> 本项目的 CDN 加速和安全保护由腾讯 EdgeOne 赞助
+  <img src="assets/edgeone-logo.png" alt="EdgeOne Logo" /> 本项目的 CDN 加速和安全保护由腾讯 EdgeOne 赞助
 </a>
 
 ## 广告

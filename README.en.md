@@ -7,7 +7,7 @@ Deploy your own ZeroTier Planet on a Linux server with Docker. The deployment al
 > **Before you start:** Clients must replace their `planet` file to use the self-hosted Planet. Running your own root node does not guarantee direct connections between devices, nor does it mean all application traffic will—or will not—pass through this server. The management interface uses **HTTP** by default; change the default password promptly after deployment.
 
 <a href="https://edgeone.ai/?from=github">
-  <img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" alt="Logo" /> CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne
+  <img src="assets/edgeone-logo.png" alt="EdgeOne Logo" /> CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne
 </a>
 
 ## Advertisements
