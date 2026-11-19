@@ -27,7 +27,8 @@ upgrade_move() {
 
 # 普通目录可以重命名。独立挂载和数据根软链接必须保留原路径和挂载点。
 upgrade_layout() {
-    local root parent target mounts dir ancestor kind=rename
+    local root parent target mounts dir ancestor kind=rename device fsroot source previous
+    local -a data_roots=()
     root=$(realpath -e -- "$ZEROTIER_PATH") && parent=$(realpath -e -- "${ZEROTIER_PATH%/*}") || return 1
     [[ ! -L $ZEROTIER_PATH ]] || kind=mounted
     for dir in "$root" "$root"/{config,dist,one,ztncui}; do
@@ -49,6 +50,22 @@ upgrade_layout() {
             "$root/"*) echo "数据目录内部还有挂载点 $target，请将磁盘挂载到数据根或四个持久化目录。" >&2; return 1 ;;
         esac
     done <<< "$mounts"
+    if [[ $kind == mounted ]]; then
+        for dir in "$root"/{config,dist,one,ztncui}; do
+            read -r device target fsroot < <(findmnt -rn -T "$dir" -o MAJ:MIN,TARGET,FSROOT) || return 1
+            printf -v target '%b' "$target"
+            printf -v fsroot '%b' "$fsroot"
+            if [[ $target == / ]]; then source="$device:${fsroot%/}$dir"
+            else source="$device:${fsroot%/}${dir#"$target"}"; fi
+            for previous in "${data_roots[@]}"; do
+                if [[ ${source%/}/ == "${previous%/}/"* || ${previous%/}/ == "${source%/}/"* ]]; then
+                    echo "持久化挂载 $dir 与另一数据目录重叠。" >&2
+                    return 1
+                fi
+            done
+            data_roots+=("$source")
+        done
+    fi
     printf '%s\n' "$kind"
     stat -Lc '%d:%i' -- "$root" "$root"/{config,dist,one,ztncui}
 }
@@ -116,7 +133,7 @@ recover_upgrade() (
     fi
 
     if [[ -f $journal/committed ]]; then
-        [[ -n $candidate && $current == "$candidate" && -d $journal/data ]] || return 1
+        [[ -d $journal/data && ! -L $journal/data ]] || return 1
         archive="${ZEROTIER_PATH}.backup.$token"
         [[ ! -e $archive && ! -L $archive ]] || return 1
         current=$(upgrade_container_id "id=$old") || return 1
@@ -153,6 +170,10 @@ recover_upgrade() (
     if [[ $old_name != "/$CONTAINER_NAME" ]]; then
         docker rename "$old" "$CONTAINER_NAME" || return 1
     fi
+    if [[ -f $journal/original-layout && $(upgrade_layout) != "$(<"$journal/original-layout")" ]]; then
+        echo "数据挂载已改变，请恢复原挂载后重试。" >&2
+        return 1
+    fi
     if [[ $was_running == true ]]; then
         docker start "$old" >/dev/null || return 1
     fi
@@ -172,7 +193,7 @@ recover_upgrade() (
 upgrade() (
     local journal="${ZEROTIER_PATH}.upgrade" old fs_image policy retries running new_image
     local info confirm staging token UPGRADE_TOKEN layout mode=${1:-upgrade}
-    local network bindings target host port exact_bindings=false
+    local network bindings advertised exact_bindings=false
     local -a launch_args=()
     recover_upgrade || return 1
     info=$(docker container inspect --format '{{.Id}} {{.Image}} {{.HostConfig.RestartPolicy.Name}} {{.HostConfig.RestartPolicy.MaximumRetryCount}} {{.State.Running}}' "$CONTAINER_NAME") || return 1
@@ -186,35 +207,21 @@ upgrade() (
         echo "当前版本已经是最新版本"
         return 0
     fi
-    verify_mounts "$CONTAINER_NAME" || return 1
+    verify_mounts "$CONTAINER_NAME" data || return 1
     if [[ $mode == repair || $running != true ]]; then
         load_repair_config "$new_image" || { echo "无法读取修复所需的部署参数。" >&2; return 1; }
     else
         load_config || { echo "无法读取现有部署的端口和地址。" >&2; return 1; }
     fi
-    network=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$old") || return 1
-    if [[ -z $network || $network == *$'\n'* ]] ||
-        [[ $(docker network inspect --format '{{.Driver}}' "$network") != bridge ]]; then
-        echo "原地升级需要单个 Docker bridge 网络以保留发布的端口。" >&2
-        return 1
-    fi
+    network=$(bridge_network "$CONTAINER_NAME") || return 1
     if [[ $running == true ]] && bindings=$(port_bindings "$old" NetworkSettings.Ports); then
         exact_bindings=true
     else
         bindings=$(port_bindings "$old" HostConfig.PortBindings) || return 1
     fi
-    bindings_include_services "$bindings" || return 1
-    launch_args=(--network "$network")
-    while IFS='|' read -r target host port; do
-        if ! port=$(normalize_port "$port"); then
-            echo "无法确定 $target 已分配的宿主机端口。请启动原容器后再重试升级。" >&2
-            return 1
-        fi
-        if [[ $host == *:* ]]; then host="[$host]"; fi
-        launch_args+=(-p "${host:+$host:}$port:$target")
-    done <<< "$bindings"
     if [[ $policy == on-failure && $retries != 0 ]]; then policy="on-failure:$retries"; fi
-    launch_args+=(--restart "$policy")
+    advertised=$(advertised_port "$CONTAINER_NAME") || return 1
+    prepare_launch_args "$network" "$policy" "$bindings" "$advertised" launch_args || return 1
     layout=$(upgrade_layout) || return 1
     if [[ $mode == repair ]]; then
         echo "将备份现有数据并重建未就绪的容器。"
@@ -223,11 +230,13 @@ upgrade() (
         read -r -p "是否继续升级?(y/n) " confirm || return 1
         if [[ ! $confirm =~ ^[Yy]$ ]]; then echo "已取消升级"; return 0; fi
     fi
+    verify_mounts "$CONTAINER_NAME" data || return 1
     staging=$(upgrade_fs mktemp -d "${ZEROTIER_PATH}.prepare.XXXXXXXX") || return 1
     token=${staging##*.}
     UPGRADE_TOKEN=$token
     trap 'upgrade_fs rm -rf "$staging"' EXIT
     upgrade_fs chown "$(id -u):$(id -g)" "$staging" || return 1
+    printf '%s\n' "$layout" > "$staging/original-layout" || return 1
     if [[ $layout == mounted$'\n'* ]]; then printf '%s\n' "$layout" > "$staging/layout" || return 1; fi
     if [[ $mode == repair ]]; then touch "$staging/repair" || return 1; fi
     printf '%s %s %s %s %s\n' "$old" "$fs_image" "$policy" "$running" "$token" > "$staging/state" || return 1
@@ -240,6 +249,10 @@ upgrade() (
 
     docker update --restart=no "$old" >/dev/null || return 1
     docker stop "$old" >/dev/null || return 1
+    if [[ $(upgrade_layout) != "$layout" ]]; then
+        echo "数据挂载已改变，请恢复原挂载后重试。" >&2
+        return 1
+    fi
     if [[ -f $journal/layout ]]; then
         upgrade_mounted_data backup || return 1
     else
@@ -259,6 +272,7 @@ upgrade() (
     run_container "$new_image" "${launch_args[@]}" || return 1
     wait_ready "$CONTAINER_NAME" || return 1
     verify_published_ports "$CONTAINER_NAME" "$bindings" "$exact_bindings" || return 1
+    verify_mounts "$CONTAINER_NAME" && save_launch_settings "$CONTAINER_NAME" || return 1
     touch "$journal/committed" || return 1
-    sync -f "$journal"
+    sync -f "$journal" && initial_password_hint "$CONTAINER_NAME"
 )

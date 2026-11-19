@@ -60,6 +60,8 @@ Allow the ports you actually use through both the server firewall and your cloud
 
 > Avoid exposing the management interface or download endpoint to untrusted users. Treat download links and their keys as credentials.
 
+Use Docker Engine 28.0.0 or newer when you rely on loopback binding to restrict management access. On older Docker releases, other hosts on the same network segment may reach the port. Restrict access with the host firewall first. [Docker port publishing](https://docs.docker.com/engine/network/port-publishing/)
+
 ### 2. Run the Deployment Script
 
 ```bash
@@ -178,7 +180,9 @@ The deployment script mounts the following host directories into the container. 
 
 You can link `data/` or `data/zerotier/` to another disk, or mount storage directly at `data/zerotier/` or any of the four persistent directories in the table. Upgrades back up the entire data tree under `data/`. Keep the original mounts available during recovery. The script verifies the mounted directories and restores their contents before starting the old container. Use bind mounts for individual directories stored elsewhere. Place each mount at the directory listed in the table. The script checks for deeper mounts before stopping the service.
 
-Automatic upgrades require one Docker bridge network and published ports for ZeroTier TCP and UDP, the management interface, and downloads. The upgrade preserves the host addresses and port numbers.
+Automatic upgrades require one Docker bridge network and published ports for ZeroTier TCP and UDP, the management interface, and downloads. The script verifies the active mounts and network configuration before stopping the container. Recorded host bindings carry over to upgrades and reinstalls. If a legacy container is missing and has no binding record, the installer asks you to confirm the default bindings.
+
+Upgrade containers with a static IP or custom network aliases manually and carry those settings over when recreating the container. For a stopped legacy container without a mount record, verify the data disks and start the original container before using the menu to upgrade or delete its data.
 
 1. Run `./deploy.sh` from the original project directory and select **3. Update**. By default the script pulls the image and compares its ID with the running version. If a new version is available and you confirm the upgrade, it stops the old container and backs up all of `data/zerotier/`. Allow for downtime and enough disk space for a full copy of the data.
 2. The health check probes the local ZeroTier control interface, the management page, and a `planet` download with the saved key. After the new container passes and Docker confirms the original port bindings, the script removes the old container and prints the backup path. By default, the pre-upgrade data is in `data/zerotier.backup.<id>/data/`. The backup contains private keys. Existing clients keep their `planet` file, Network ID, and authorization.
@@ -190,6 +194,7 @@ If an installation retry reports missing or conflicting identity or signing keys
 
 - Save your initial or reset password in a password manager. New installations require no public firewall rule for the management port.
 - Use an SSH tunnel or an HTTPS reverse proxy for remote management. Upgrades preserve the previous port bindings. Restrict public access on older installations with a firewall.
+- An upgrade replaces a legacy factory password for the `admin` account. Use the initial-password command to retrieve the generated password. Custom passwords are preserved.
 - Treat download links and keys as credentials. The updated file service reuses `data/zerotier/config/file_server.key`. When first creating the file, it uses `SECRET_KEY` if set or generates a random key. If a download link stops working after a rollback to an older image, select **4. View Information** to get the current URL.
 
 The following example assumes Nginx and the container run on the same host, you already have a certificate, and `3443` is the management port you mapped. The proxy forwards requests to the host loopback address:
@@ -251,9 +256,11 @@ services:
 
 > Keep the example's port mappings and container environment variables in sync. If you change a listening port, update its mapping and your firewall rules too. **Do not commit a Compose file containing your real public IP address, download key, or private configuration to a public repository.** When updating manually with Compose, stop the service and back up the full data directory yourself. The Update option in `./deploy.sh` handles automatic backups and rollback.
 
+When the external ZeroTier UDP port differs from the container's `ZT_PORT`, set `ZT_ADVERTISED_PORT` in the container environment to the port clients connect to.
+
 ### Publishing the official image
 
-The `Verify and publish ZeroTier image` workflow tests images on `amd64` and `arm64`. Maintainers can run it manually on `master` with `publish` selected to publish the tested images to `xubiaolin/zerotier-planet`. The publish job uses the Docker Hub credentials in the `dockerhub-production` environment. The image includes the source-available ZeroTier controller. Its license governs redistribution and commercial use. [Controller license](https://github.com/zerotier/ZeroTierOne/blob/1.16.2/nonfree/LICENSE.md)
+The `Verify and publish ZeroTier image` workflow tests images on `amd64` and `arm64`. A manual verification run reloads the built images and uses public Alpine images to check archive transfer between jobs. Maintainers can run it manually on `master` with `publish` selected to publish the tested images to `xubiaolin/zerotier-planet`. The publish job uses the Docker Hub credentials in the `dockerhub-production` environment and checks that the run matches current `master` before updating the release tags. The image's `/usr/share/doc/zerotier/SOURCE.txt` identifies the corresponding source and build files. The image includes the source-available ZeroTier controller. Its license governs redistribution and commercial use. [Controller license](https://github.com/zerotier/ZeroTierOne/blob/1.16.2/nonfree/LICENSE.md)
 
 To use a verified published release in the Compose example, set `image: xubiaolin/zerotier-planet:<verified-version>` and remove `build`.
 
@@ -281,7 +288,7 @@ After a client replaces its `planet` file with the one generated by this project
 
 ### What if the server's public IP or communication port changes?
 
-Reinstalls and in-place upgrades reuse the existing node address. Before moving to a different public IP or ZeroTier port, back up all of `data/zerotier/`. Update the node's endpoint configuration, use the original signing keys to generate `planet` and `moon` files for the new endpoint, and distribute the updated files to the clients that use them.
+Reinstalls and in-place upgrades reuse the existing node address. Before moving to a different public IP or ZeroTier port, back up all of `data/zerotier/`. Update the node's endpoint configuration and signed files together, then distribute the updated `planet` and `moon` files to clients. Startup checks that the configured endpoints match the signed files.
 
 ### What if I forget the management password?
 

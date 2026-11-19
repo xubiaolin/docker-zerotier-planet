@@ -5,7 +5,7 @@ container_exists() {
 }
 
 verify_mounts() {
-    local name=$1 dest type writable source expected mounts count=0
+    local name=$1 mode=${2:-inspect} dest type writable source expected mounts count=0 running live host
     mounts=$(docker inspect --format '{{range .Mounts}}{{println .Destination .Type .RW .Source}}{{end}}' "$name") || return 1
     while read -r dest type writable source; do
         case "$dest" in
@@ -13,6 +13,10 @@ verify_mounts() {
             /app/dist) expected=$DIST_PATH ;;
             /app/ztncui) expected=$ZTNCUI_PATH ;;
             /var/lib/zerotier-one) expected=$ZEROTIER_PATH/one ;;
+            /app/config/*|/app/dist/*|/app/ztncui/*|/var/lib/zerotier-one/*)
+                echo "容器 $name 有额外的数据子挂载 $dest。" >&2
+                return 1
+                ;;
             *) continue ;;
         esac
         if [[ $type != bind || $writable != true || ! "$source" -ef "$expected" ]]; then
@@ -22,6 +26,21 @@ verify_mounts() {
         ((count+=1))
     done <<< "$mounts"
     [[ $count == 4 ]] || { echo "容器的四个数据挂载不完整，请检查原部署。" >&2; return 1; }
+    running=$(docker inspect --format '{{.State.Running}}' "$name") || return 1
+    if [[ $running == true ]]; then
+        live=$(docker exec --user 0 "$name" stat -Lc '%d:%i' \
+            /app/config /app/dist /var/lib/zerotier-one /app/ztncui) || return 1
+        host=$(stat -Lc '%d:%i' -- "$CONFIG_PATH" "$DIST_PATH" "$ZEROTIER_PATH/one" "$ZTNCUI_PATH") || return 1
+        if [[ $live != "$host" ]]; then
+            echo "容器 $name 使用的数据挂载与宿主机当前路径不符。" >&2
+            return 1
+        fi
+    elif [[ $mode == data ]]; then
+        if ! read_saved_layout "$name"; then
+            echo "无法核实停止容器的数据挂载。请核对磁盘并启动原容器后再试。" >&2
+            return 1
+        fi
+    fi
 }
 
 read_config() {
@@ -97,6 +116,7 @@ empty_installation() {
                 [ ! -L "$entry" ] || exit 1
                 case "${entry##*/}" in
                     .install-settings) test -f "$entry" ;;
+                    lost+found) test -d "$entry" ;;
                     config|dist|one|ztncui) test -d "$entry" && test -z "$(ls -A -- "$entry")" ;;
                     *) exit 1 ;;
                 esac || exit 1
@@ -242,6 +262,125 @@ verify_published_ports() {
     done <<< "$expected"
 }
 
+bridge_network() {
+    local name=$1 rows network ipam links aliases network_name id alias
+    rows=$(docker inspect --format '{{range $network, $endpoint := .NetworkSettings.Networks}}{{printf "%s|%t|%d|%s\n" $network (ne $endpoint.IPAMConfig nil) (len $endpoint.Links) (join $endpoint.Aliases ",")}}{{end}}' "$name") || return 1
+    IFS='|' read -r network ipam links aliases <<< "$rows"
+    if [[ -z $network || $rows == *$'\n'* || $ipam != false || $links != 0 ]]; then
+        echo "需要单个无静态地址或链接的 Docker bridge 网络。" >&2
+        return 1
+    fi
+    network_name=$(docker network inspect --format '{{if eq .Driver "bridge"}}{{.Name}}{{end}}' "$network") || return 1
+    [[ $network == "$network_name" ]] || return 1
+    if [[ -n $aliases ]]; then
+        id=$(docker inspect --format '{{.Id}}' "$name") || return 1
+        while IFS= read -r alias; do
+            if [[ $alias != "$name" && $alias != "${id:0:12}" && $alias != "${id}" ]]; then
+                echo "无法自动保留容器的自定义网络别名 $alias。" >&2
+                return 1
+            fi
+        done <<< "${aliases//,/$'\n'}"
+    fi
+    printf '%s\n' "$network"
+}
+
+prepare_launch_args() {
+    local network=$1 policy=$2 bindings=$3 advertised=$4 target host port mapped=
+    local -n result=$5
+    [[ $network =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ &&
+       $policy =~ ^(no|always|unless-stopped|on-failure(:[0-9]+)?)$ ]] || return 1
+    bindings_include_services "$bindings" || return 1
+    result=(--network "$network" --restart "$policy")
+    while IFS='|' read -r target host port; do
+        [[ $target =~ ^[0-9]{1,5}/(tcp|udp|sctp)$ && $host =~ ^[0-9a-fA-F.:]*$ ]] || return 1
+        if ! port=$(normalize_port "$port"); then
+            echo "无法确定 $target 已分配的宿主机端口。请启动原容器后再试。" >&2
+            return 1
+        fi
+        if [[ $target == "$ZT_PORT/udp" && -z $advertised ]]; then
+            if [[ -n $mapped && $mapped != "$port" ]]; then
+                echo "ZeroTier 的 UDP 绑定需要统一的宿主机端口。" >&2
+                return 1
+            fi
+            mapped=$port
+        fi
+        if [[ $host == *:* ]]; then host="[$host]"; fi
+        result+=(-p "${host:+$host:}$port:$target")
+    done <<< "$bindings"
+    advertised=$(normalize_port "${advertised:-$mapped}") || return 1
+    result+=(-e "ZT_ADVERTISED_PORT=$advertised")
+}
+
+advertised_port() {
+    local name=$1 saved environment
+    if saved=$(read_config zerotier-advertised.port) && [[ -n $saved ]]; then
+        normalize_port "$saved"
+        return
+    fi
+    environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$name") || return 1
+    sed -n 's/^ZT_ADVERTISED_PORT=//p' <<< "$environment"
+}
+
+save_launch_settings() {
+    local name=$1 network policy retries bindings ids advertised
+    network=$(bridge_network "$name") || return 1
+    policy=$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}} {{.HostConfig.RestartPolicy.MaximumRetryCount}}' "$name") || return 1
+    read -r policy retries <<< "$policy"
+    if [[ $policy == on-failure && $retries != 0 ]]; then policy="on-failure:$retries"; fi
+    bindings=$(port_bindings "$name" NetworkSettings.Ports) || return 1
+    advertised=$(advertised_port "$name") || return 1
+    ids=$(stat -Lc '%d:%i' -- "$CONFIG_PATH" "$DIST_PATH" "$ZEROTIER_PATH/one" "$ZTNCUI_PATH") || return 1
+    printf '%s\n' "$name" "$network" "$policy" "${ids//$'\n'/ }" "$advertised" "$bindings" |
+        docker exec -i --user 0 "$name" sh -ec '
+            umask 077
+            temporary=$(mktemp /app/config/.launch.XXXXXXXX)
+            trap '\''rm -f -- "$temporary"'\'' EXIT
+            cat > "$temporary"
+            mv -f -- "$temporary" /app/config/.launch-settings
+            sync'
+}
+
+read_saved_layout() {
+    local name=$1 image saved ids
+    image=$(docker inspect --format '{{.Image}}' "$name") || return 1
+    saved=$(docker run --rm --network none --user 0 -v "$CONFIG_PATH:/saved:ro" --entrypoint cat \
+        "$image" /saved/.launch-settings 2>/dev/null) || return 1
+    ids=$(stat -Lc '%d:%i' -- "$CONFIG_PATH" "$DIST_PATH" "$ZEROTIER_PATH/one" "$ZTNCUI_PATH") || return 1
+    [[ ${saved%%$'\n'*} == "$name" && $(sed -n '4p' <<< "$saved") == "${ids//$'\n'/ }" ]]
+}
+
+restore_launch_settings() {
+    local image=$1 settings name network policy ids advertised bindings line configured
+    local -n launch=$2 exact=$3
+    settings=$(docker run --rm --network none --user 0 -v "$CONFIG_PATH:/saved:ro" --entrypoint sh \
+        "$image" -ec '
+            if test -e /saved/.launch-settings || test -L /saved/.launch-settings; then
+                test -f /saved/.launch-settings && test ! -L /saved/.launch-settings
+                cat /saved/.launch-settings
+            fi') || return 1
+    if [[ -z $settings ]]; then
+        read -r -p "找不到原容器的端口绑定。是否使用默认绑定重装？(y/n) " line && [[ $line == [Yy] ]]
+        return
+    fi
+    {
+        read -r name && read -r network && read -r policy && read -r ids && read -r advertised && bindings=$(cat)
+    } <<< "$settings" || return 1
+    if [[ $name != "$CONTAINER_NAME" ]]; then echo "保存的容器名为 $name。" >&2; return 1; fi
+    configured=$(docker network inspect --format '{{if eq .Driver "bridge"}}{{.Name}}{{end}}' "$network") || return 1
+    [[ $configured == "$network" ]] || return 1
+    prepare_launch_args "$network" "$policy" "$bindings" "$advertised" launch || return 1
+    exact=$bindings
+}
+
+initial_password_hint() {
+    local name=$1 secure_admin
+    secure_admin=$(docker inspect --format '{{index .Config.Labels "org.zerotier-planet.secure-admin"}}' "$name") || return 1
+    if [[ $secure_admin == 1 ]] &&
+        docker exec "$name" test -s /app/config/.initial-admin-password; then
+        printf '领取首次管理员密码：docker exec %q node /app/admin-password.js initial\n' "$name"
+    fi
+}
+
 wait_ready() {
     local name=$1 state health diagnostic deadline=$((SECONDS + 120))
     while (( SECONDS < deadline )); do
@@ -276,7 +415,8 @@ wait_ready() {
 }
 
 install() {
-    local image state retry_safe secure_admin mode=reuse
+    local image state retry_safe mode=reuse expected_bindings= existing_data=false
+    local -a launch_args=()
     if container_exists "$CONTAINER_NAME"; then
         verify_mounts "$CONTAINER_NAME" || return 1
         state=$(docker inspect --format '{{.State.Status}}' "$CONTAINER_NAME") || return 1
@@ -304,32 +444,49 @@ install() {
         fi
     else
         image=$(resolve_image "$DOCKER_IMAGE") || return 1
-        if pending_installation "$image" && correct_install_settings; then mode=reconfigure; fi
-        prepare_install "$image" "$mode" && run_container "$image" || return 1
+        if empty_installation "$image"; then
+            if [[ -f $ZEROTIER_PATH/.install-settings ]] && correct_install_settings; then mode=reconfigure; fi
+        else
+            existing_data=true
+        fi
+        prepare_install "$image" "$mode" || return 1
+        if [[ $existing_data == true ]]; then
+            restore_launch_settings "$image" launch_args expected_bindings || return 1
+        fi
+        run_container "$image" "${launch_args[@]}" || return 1
     fi
-    wait_ready "$CONTAINER_NAME" && info || return 1
-    secure_admin=$(docker inspect --format '{{index .Config.Labels "org.zerotier-planet.secure-admin"}}' "$CONTAINER_NAME") || return 1
-    if [[ $secure_admin == 1 ]]; then
-        printf '领取首次管理员密码：docker exec %q node /app/admin-password.js initial\n' "$CONTAINER_NAME"
+    wait_ready "$CONTAINER_NAME" || return 1
+    if [[ -n $expected_bindings ]]; then
+        verify_published_ports "$CONTAINER_NAME" "$expected_bindings" true || return 1
     fi
+    info || return 1
+    if [[ -z $state ]]; then
+        save_launch_settings "$CONTAINER_NAME" || return 1
+    elif bridge_network "$CONTAINER_NAME" >/dev/null 2>&1; then
+        save_launch_settings "$CONTAINER_NAME" || return 1
+    fi
+    initial_password_hint "$CONTAINER_NAME"
 }
 
 info() {
-    local host key moon file bindings target address port admin_url= download_url=
+    local host key moon file bindings target address port download_url
+    local -a admin_urls=() download_urls=()
     verify_mounts "$CONTAINER_NAME" && load_config || { echo "无法读取当前部署配置。" >&2; return 1; }
     verify_published_ports "$CONTAINER_NAME" || return 1
     bindings=$(port_bindings "$CONTAINER_NAME" NetworkSettings.Ports) || return 1
     while IFS='|' read -r target address port; do
         case "$address" in
-            0.0.0.0) host=${ipv4:-[$ipv6]} ;;
-            ::) host=${ipv6:+[$ipv6]}; host=${host:-$ipv4} ;;
+            0.0.0.0) host=$ipv4 ;;
+            ::) host=${ipv6:+[$ipv6]} ;;
             *:*) host="[$address]" ;;
             *) host=$address ;;
         esac
-        if [[ $target == "$API_PORT/tcp" && -z $admin_url ]]; then admin_url="http://$host:$port"; fi
-        if [[ $target == "$FILE_PORT/tcp" && -z $download_url ]]; then download_url="http://$host:$port"; fi
+        [[ -n $host ]] || continue
+        if [[ $target == "$API_PORT/tcp" ]]; then admin_urls+=("http://$host:$port"); fi
+        if [[ $target == "$FILE_PORT/tcp" ]]; then download_urls+=("http://$host:$port"); fi
     done <<< "$bindings"
-    echo "管理界面：$admin_url"
+    for host in "${admin_urls[@]}"; do echo "管理界面：$host"; done
+    if (( ! ${#admin_urls[@]} )); then echo "没有与管理端口绑定同地址族的通告地址。"; fi
     echo "管理员账号：admin"
     echo "客户端文件目录：$DIST_PATH"
     # Existing installations may use a custom key with characters reserved in URLs.
@@ -343,9 +500,12 @@ info() {
         for file in /app/dist/*.moon; do
             if [ -s "$file" ]; then basename "$file"; fi
         done') || return 1
-    echo "planet 下载：$download_url/planet?key=$key"
-    while IFS= read -r file; do
-        [[ -z $file ]] || echo "moon 下载：$download_url/$file?key=$key"
-    done <<< "$moon"
+    for download_url in "${download_urls[@]}"; do
+        echo "planet 下载：$download_url/planet?key=$key"
+        while IFS= read -r file; do
+            [[ -z $file ]] || echo "moon 下载：$download_url/$file?key=$key"
+        done <<< "$moon"
+    done
+    if (( ! ${#download_urls[@]} )); then echo "没有与下载端口绑定同地址族的通告地址。"; fi
     echo "容器内端口：$ZT_PORT/tcp、$ZT_PORT/udp、$API_PORT/tcp、$FILE_PORT/tcp"
 }

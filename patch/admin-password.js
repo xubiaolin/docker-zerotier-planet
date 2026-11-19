@@ -15,6 +15,10 @@ async function newAdmin() {
     return { admin, password };
 }
 
+async function usesLegacyDefault(admin) {
+    return typeof admin?.hash === 'string' && await argon2.verify(admin.hash, 'password');
+}
+
 function removeInitial() {
     try {
         fs.unlinkSync(initialPassword);
@@ -65,4 +69,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { newAdmin, passwd, initialPassword };
+module.exports = { newAdmin, usesLegacyDefault, passwd, initialPassword };

@@ -5,8 +5,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
 const { isIP } = require('node:net');
-const { read, value, parseJson, syncDirectory, atomicWrite, legacyEnv, resolveSettings, validate } = require('./settings');
-const { newAdmin, passwd, initialPassword } = require('./admin-password');
+const { read, value, parseJson, syncDirectory, atomicWrite, legacyEnv, resolveSettings, validate, canonicalPort } = require('./settings');
+const { newAdmin, usesLegacyDefault, passwd, initialPassword } = require('./admin-password');
 const { execFileSync } = require('node:child_process');
 
 const one = '/var/lib/zerotier-one';
@@ -20,6 +20,7 @@ const complete = path.join(config, '.planet-initialized');
 const moonPath = path.join(one, 'moon.json');
 const keyPath = path.join(config, 'file_server.key');
 const published = path.join(dist, 'planet');
+const advertisedPortFile = path.join(config, 'zerotier-advertised.port');
 const controller = path.join(one, 'controller.d/network');
 const envFile = path.join(ui, '.env');
 const tokenFile = path.join(one, 'authtoken.secret');
@@ -63,7 +64,7 @@ function allowedTarget(file) {
     };
     const dir = path.dirname(file);
     const name = path.basename(file);
-    return file === initialPassword || names[dir]?.includes(name) ||
+    return file === initialPassword || file === advertisedPortFile || names[dir]?.includes(name) ||
         ([dist, path.join(one, 'moons.d')].includes(dir) && /^[0-9a-f]{16}\.moon$/.test(name));
 }
 
@@ -101,17 +102,18 @@ async function prepareCredentials() {
     requireState(downloadKey || process.env.SECRET_KEY || !(isComplete || existingUi || hasNetworks),
         `缺少旧下载密钥 ${keyPath}`);
     requireState(existingUi || !served, `缺少原管理员密码文件 ${passwd}`);
+    const users = existingUi ? parseJson(existingUi, passwd) : {};
     if (existingUi) {
-        requireState(Object.values(parseJson(existingUi, passwd)).some(user => user && typeof user.hash === 'string'),
+        requireState(users && Object.values(users).some(user => user && typeof user.hash === 'string'),
             `管理员密码文件无有效用户：${passwd}`);
     }
     if (served) requireState(fs.existsSync(controller), `缺少控制器网络目录 ${controller}`);
 
     add(tokenFile, token);
     add(keyPath, downloadKey || process.env.SECRET_KEY || randomBytes(24).toString('hex'));
-    if (!existingUi) {
+    if (!existingUi || await usesLegacyDefault(users.admin)) {
         const { admin, password } = await newAdmin();
-        planWrite(passwd, JSON.stringify({ admin }));
+        planWrite(passwd, JSON.stringify({ ...users, admin }));
         planWrite(initialPassword, password + '\n');
     }
     return { served, hasIdentityEvidence, token };
@@ -142,11 +144,29 @@ function prepareIdentity(work, execId, hasIdentityEvidence) {
     return identity;
 }
 
+function endpointKey(endpoint) {
+    const [ip, port] = endpoint.split('/');
+    const address = isIP(ip) === 6 ? new URL(`http://[${ip}]`).hostname : ip;
+    return address + '/' + canonicalPort(port);
+}
+
+function endpointsMatch(actual, expected) {
+    const endpoints = actual.map(endpointKey).sort();
+    return JSON.stringify(endpoints) === JSON.stringify(expected.map(endpointKey).sort());
+}
+
 function prepareEndpoints(work, moon, token) {
     const [ztPort, apiPort, filePort, ipv4, ipv6] = resolveSettings(moon);
     const ports = [ztPort || '9994', apiPort || '3443', filePort || '3000'];
     const addresses = [ipv4, ipv6];
-    if (!moon.roots[0].stableEndpoints.length) {
+    const stable = moon.roots[0].stableEndpoints;
+    const savedPort = value(advertisedPortFile);
+    const specifiedPort = process.env.ZT_ADVERTISED_PORT;
+    const advertisedPort = canonicalPort(specifiedPort || savedPort || stable[0]?.split('/')[1] || ports[0]);
+    if (savedPort && specifiedPort) {
+        requireState(canonicalPort(savedPort) === advertisedPort, '公网 ZeroTier 端口与持久化设置不符，请先迁移客户端文件');
+    }
+    if (!stable.length) {
         for (const [index, version] of [4, 6].entries()) {
             if (addresses[index]) continue;
             try {
@@ -154,11 +174,19 @@ function prepareEndpoints(work, moon, token) {
                 if (isIP(ip) === version) addresses[index] = ip;
             } catch { /* The host may have only one address family. */ }
         }
-        moon.roots[0].stableEndpoints = addresses.filter(Boolean).map(ip => ip + '/' + ports[0]);
+        moon.roots[0].stableEndpoints = addresses.filter(Boolean).map(ip => ip + '/' + advertisedPort);
     }
     validate([...ports, ...addresses]);
+    if (stable.length) {
+        const configured = addresses.filter(Boolean).map(ip => endpointKey(ip + '/' + advertisedPort));
+        const existing = stable.map(endpointKey);
+        requireState(configured.every(endpoint => existing.includes(endpoint)) &&
+            existing.every(endpoint => endpoint.endsWith('/' + advertisedPort)),
+        '持久化的公网地址或 ZeroTier 端口与 Moon 不符，请先迁移客户端文件');
+    }
     for (const [name, port] of Object.entries({
         'zerotier-one.port': ports[0], 'ztncui.port': ports[1], 'file_server.port': ports[2],
+        'zerotier-advertised.port': advertisedPort,
     })) {
         const file = path.join(config, name);
         const canonical = Buffer.from(port + '\n');
@@ -170,22 +198,17 @@ function prepareEndpoints(work, moon, token) {
     add(envFile, `HTTP_PORT=${ports[1]}\nHTTP_ALL_INTERFACES=true\nNODE_ENV=production\nZT_ADDR=127.0.0.1:${ports[0]}\nZT_TOKEN=${token}\n`);
 }
 
-function prepareKeys(work, execWorld, previous, current, planetCopy, served) {
+function prepareKeys(work, execWorld, previous, current, hasPlanet, served) {
     const keyFiles = ['previous.c25519', 'current.c25519'];
     if (!previous?.length && !current?.length) {
-        requireState(!planetCopy && !served, '缺少原 Planet 签名密钥 previous.c25519 和 current.c25519');
+        requireState(!hasPlanet && !served, '缺少原 Planet 签名密钥 previous.c25519 和 current.c25519');
         execWorld('--new-keys');
     } else {
         requireState((!previous?.length || previous.length === 128) && (!current?.length || current.length === 128),
             'Planet 签名密钥长度错误');
         fs.writeFileSync(path.join(work, keyFiles[0]), previous?.length ? previous : current);
         fs.writeFileSync(path.join(work, keyFiles[1]), current?.length ? current : previous);
-        if (!previous?.length || !current?.length) {
-            requireState(planetCopy, '缺少可用于验证待恢复签名密钥的 Planet');
-            execWorld('--verify-key-copy', planetCopy);
-        } else if (planetCopy) {
-            execWorld('--verify-keys', planetCopy);
-        }
+        requireState((previous?.length && current?.length) || hasPlanet, '缺少可用于验证待恢复签名密钥的 Planet');
     }
     for (const name of keyFiles) add(path.join(one, name), fs.readFileSync(path.join(work, name)));
 }
@@ -214,16 +237,15 @@ async function prepare(work) {
     // inspected world for this identity can restore the published private file.
     const localPlanet = path.join(one, 'planet');
     const worldBin = path.join(one, 'world.bin');
-    let planetCopy;
-    for (const file of [published, worldBin, localPlanet]) {
-        if (!read(file)?.length) continue;
-        if (isOwnWorld(inspect(file), 'planet')) {
-            planetCopy = file;
-            break;
-        }
-        requireState(file === localPlanet, `Planet 与原节点身份不匹配：${file}`);
+    const planetCopies = [published, localPlanet, worldBin].filter(file => read(file)?.length);
+    const worlds = new Map();
+    for (const file of planetCopies) {
+        try {
+            worlds.set(file, inspect(file));
+        } catch { /* Another copy may restore a damaged file. */ }
     }
-    requireState(moon || !(served || planetCopy || moonCopy || previous?.length || current?.length),
+    const ownPlanets = planetCopies.filter(file => worlds.has(file) && isOwnWorld(worlds.get(file), 'planet'));
+    requireState(moon || !(served || ownPlanets.length || moonCopy || previous?.length || current?.length),
         `缺少原 Moon 签名材料 ${moonPath}`);
     // The old Dockerfile copied the builder's identity, stock Planet and tools
     // into the volume before replacing that identity. An interruption before
@@ -242,23 +264,50 @@ async function prepare(work) {
     fs.writeFileSync(path.join(work, 'moon.json'), configuredMoon);
     if (!moonText) add(moonPath, configuredMoon);
     else if (hadNoEndpoints) {
-        requireState(!served && !planetCopy && !moonCopy, `Moon 已发布但缺少 stableEndpoints：${moonPath}`);
+        requireState(!served && !ownPlanets.length && !moonCopy, `Moon 已发布但缺少 stableEndpoints：${moonPath}`);
         planWrite(moonPath, configuredMoon);
     }
 
-    prepareKeys(work, execWorld, previous, current, planetCopy, served);
+    const verifyKeys = !previous?.length || !current?.length ? '--verify-key-copy' : '--verify-keys';
+    prepareKeys(work, execWorld, previous, current, ownPlanets.length, served);
+    const validPlanets = ownPlanets.filter(file => {
+        try {
+            execWorld(verifyKeys, file);
+            return true;
+        } catch {
+            return false;
+        }
+    });
+    const expectedEndpoints = moon.roots[0].stableEndpoints;
+    const worldMatches = world => {
+        const root = world.roots.find(candidate => candidate.identity === identity);
+        return endpointsMatch(root.stableEndpoints, expectedEndpoints);
+    };
+    let planetCopy = validPlanets[0];
     if (!planetCopy) {
+        requireState(!ownPlanets.length, `Planet 签名校验失败：${verifyKeys}`);
+        requireState(planetCopies.every(file => file === localPlanet && worlds.get(file)?.worldType === 'planet'),
+            '没有可恢复的有效 Planet 副本，请检查备份');
         execWorld();
         planetCopy = path.join(work, 'world.bin');
-        requireState(isOwnWorld(inspect(planetCopy), 'planet'), 'Planet 生成结果无效');
+        const generated = inspect(planetCopy);
+        requireState(isOwnWorld(generated, 'planet') && worldMatches(generated), 'Planet 生成结果无效');
+    } else {
+        const activeCopies = validPlanets.filter(file => file !== worldBin);
+        requireState(activeCopies.every(file => read(file).equals(read(planetCopy))), '两份有效 Planet 不一致，请核对后再选择恢复副本');
+        requireState(worldMatches(worlds.get(planetCopy)), 'Planet 通告端点与 Moon 不符，请先迁移客户端文件');
     }
-    add(published, fs.readFileSync(planetCopy));
-    add(localPlanet, fs.readFileSync(planetCopy));
+    const planetData = fs.readFileSync(planetCopy);
+    for (const file of [published, localPlanet]) {
+        if (!read(file)?.equals(planetData)) planWrite(file, planetData);
+    }
     const sourceMoon = moonCopy || path.join(work, moonName);
     if (!moonCopy) execId('genmoon', 'moon.json');
     for (const file of new Set([sourceMoon, ...moonCopies.slice(0, 2)])) {
         if (!read(file)?.length) continue;
-        requireState(isOwnWorld(inspect(file), 'moon'), `Moon 与原节点身份不匹配：${file}`);
+        const world = inspect(file);
+        requireState(isOwnWorld(world, 'moon'), `Moon 与原节点身份不匹配：${file}`);
+        requireState(worldMatches(world), `Moon 通告端点与配置不符，请先迁移客户端文件：${file}`);
         execWorld(moonCopy ? '--verify-moon' : '--verify-new-moon', file);
     }
     for (const file of moonCopies.slice(0, 2)) add(file, fs.readFileSync(sourceMoon));

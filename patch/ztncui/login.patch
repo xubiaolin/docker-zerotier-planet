@@ -1,9 +1,55 @@
+--- a/src/app.js
++++ b/src/app.js
+@@ -15,6 +15,8 @@
+ const expressValidator = require('express-validator');
+ const session = require('express-session');
+ const helmet = require('helmet');
++const { randomBytes } = require('node:crypto');
++const { csrf } = require('/app/web-admin');
+
+ const index = require('./routes/index');
+ const users = require('./routes/users');
+@@ -22,7 +24,7 @@
+
+ const app = express();
+
+-const session_secret = Math.random().toString(36).substring(2,12);
++const session_secret = randomBytes(32).toString('hex');
+
+ // view engine setup
+ app.set('views', path.join(__dirname, 'views'));
+@@ -36,7 +38,8 @@
+ app.use(session({
+   resave: false,
+   saveUninitialized: false,
+-  secret: session_secret
++  secret: session_secret,
++  cookie: { sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 }
+ }));
+ app.use(expressValidator());
+ app.use(cookieParser());
+@@ -46,6 +49,7 @@
+ app.use('/jqjs', express.static(path.join(__dirname, 'node_modules/jquery/dist')));
+ app.use('/bsjs', express.static(path.join(__dirname, 'node_modules/bootstrap/dist/js')));
+
++app.use(csrf);
+ app.use('/', index);
+ app.use('/users', users);
+ app.use('/controller', zt_controller);
+@@ -65,6 +69,7 @@
+ // error handler
+ app.use(function(err, req, res, next) {
+   // set locals, only providing error in development
++  if (res.headersSent) return next(err);
+   res.locals.message = err.message;
+   res.locals.error = req.app.get('env') === 'development' ? err : {};
+
 --- a/src/controllers/auth.js
 +++ b/src/controllers/auth.js
 @@ -7,35 +7,13 @@
  const argon2 = require('argon2');
  const usersController = require('../controllers/usersController');
- 
+
 -const hash_check = async function(user, password) {
 -  let verified = false;
 -  try {
@@ -40,14 +86,277 @@
 -  }
 +  return callback(null, user);
  }
- 
+
  exports.restrict = function(req, res, next) {
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -5,7 +5,8 @@
+ */
+
+ const fs = require('fs');
+-const ipaddr = require('ip-address');
++const { Address4, Address6 } = require('ip-address');
++const { isIP } = require('node:net');
+ const storage = require('node-persist');
+ const zt = require('./zt');
+ const util = require('util');
+@@ -298,21 +299,11 @@
+   req.sanitize('target').trim();
+   req.checkBody('target', 'Target network must be valid CIDR format')
+     .custom(value => {
++      if (typeof value !== 'string' || value.length > 49) return false;
+       const parts = value.split('/');
+-      const ipv4 = new ipaddr.Address4(parts[0]);
+-      const ipv6 = new ipaddr.Address6(parts[0]);
+-      let isValidIPv4orIPv6 = false;
+-      let prefixMax = 32;
+-      if (ipv4.isValid()) {
+-        isValidIPv4orIPv6 = true;
+-      } else {
+-      }
+-      if (ipv6.isValid()) {
+-        isValidIPv4orIPv6 = true;
+-        prefixMax = 128;
+-      } else {
+-      }
+-      return isValidIPv4orIPv6 && isValidPrefix(parts[1], prefixMax);
++      const version = isIP(parts[0]);
++      return parts.length === 2 && version !== 0 && !parts[0].includes('%') &&
++        isValidPrefix(parts[1], version === 4 ? 32 : 128);
+     });
+   req.checkBody('via', 'Gateway must be a valid IPv4 or IPv6 address').optional({ checkFalsy: true }).isIP();
+   req.sanitize('via').escape();
+@@ -349,7 +340,7 @@
+
+ }
+
+-// route_delete GET
++// route_delete POST
+ exports.route_delete = async function (req, res) {
+   const navigate =
+     {
+@@ -373,7 +364,7 @@
+   }
+ }
+
+-// ipAssignmentPool_delete GET
++// ipAssignmentPool_delete POST
+ exports.ipAssignmentPool_delete = async function (req, res) {
+   const navigate =
+     {
+@@ -481,10 +472,7 @@
+       servers: req.body.servers
+         .split('\n')
+         .map(x => x.trim())
+-        .filter(ip =>
+-          new ipaddr.Address4(ip).isValid() ||
+-          new ipaddr.Address6(ip).isValid()
+-        )
++        .filter(ip => ip.length <= 45 && !ip.includes('%') && isIP(ip))
+     }
+   };
+
+@@ -569,8 +557,7 @@
+   req.checkBody('networkCIDR', 'Network address must be in CIDR notation')
+     .custom(value => {
+       const parts = value.split('/');
+-      const ipv4 = new ipaddr.Address4(parts[0]);
+-      return ipv4.isValid() && isValidPrefix(parts[1], 32);
++      return parts.length === 2 && isIP(parts[0]) === 4 && isValidPrefix(parts[1], 32);
+     });
+   req.checkBody('poolStart', 'Start of IP assignment pool is required')
+     .notEmpty();
+@@ -694,6 +681,7 @@
+         }
+       }
+     }
++    return res.sendStatus(errors ? 400 : 204);
+   } else { // GET
+     res.redirect("/controller/network/" + req.params.nwid + "#members");
+   }
+@@ -732,7 +720,7 @@
+   }
+ }
+
+-// ipAssignment delete GET
++// ipAssignment delete POST
+ exports.delete_ip = async function(req, res) {
+   const navigate =
+     {
+@@ -746,9 +734,8 @@
+     navigate.whence = '/controller/network/' + network.nwid;
+     member.name = await storage.getItem(member.id) | '';
+     if (req.params.index) {
+-      member = await zt.ipAssignmentDelete(network.nwid, member.id,
+-                                                              req.params.index);
+-      res.redirect('/controller/network/' + network.nwid + '/member/' +
++      await zt.ipAssignmentDelete(network.nwid, member.id, req.params.index);
++      return res.redirect('/controller/network/' + network.nwid + '/member/' +
+                                                   member.id + '/ipAssignments');
+     }
+     res.render('ipAssignments', {title: 'ipAssignments ' + network.name,
+@@ -778,20 +765,14 @@
+   req.checkBody('ipAddress', 'IP address must be a valid IPv4 or IPv6 address').isIP();
+   req.checkBody('ipAddress', 'IP address must fall within a managed route')
+     .custom(value => {
+-      let ipAddressInManagedRoute = false;
+-      network.routes.forEach(function(item) {
+-        let ipv4 = new ipaddr.Address4(value);
+-        let target4 = new ipaddr.Address4(item.target);
+-        if (ipv4.isValid() && target4.isValid()) {
+-          if (ipv4.isInSubnet(target4)) ipAddressInManagedRoute =  true;
+-        }
+-        let ipv6 = new ipaddr.Address6(value);
+-        let target6 = new ipaddr.Address6(item.target);
+-        if (ipv6.isValid() && target6.isValid()) {
+-          if (ipv6.isInSubnet(target6)) ipAddressInManagedRoute =  true;
+-        }
+-      });
+-      return ipAddressInManagedRoute;
++      if (typeof value !== 'string' || value.length > 45 || value.includes('%')) return false;
++      const version = isIP(value);
++      if (!version) return false;
++      const Address = version === 4 ? Address4 : Address6;
++      const address = new Address(value);
++      return network.routes.some(({target}) =>
++        typeof target === 'string' && target.length <= 49 && Address.isValid(target) &&
++        address.isInSubnet(new Address(target)));
+     });
+   req.sanitize('ipAddress').escape();
+   req.sanitize('ipAddress').trim();
+--- a/src/controllers/usersController.js
++++ b/src/controllers/usersController.js
+@@ -4,43 +4,25 @@
+   Licensed under GPLv3 - see LICENSE for details.
+ */
+
+-const fs = require('fs');
+ const argon2 = require('argon2');
+-const util = require('util');
++const { read, atomicWrite } = require('/app/settings');
+
+ const passwd_file = 'etc/passwd';
+ const min_pass_len = 10;
+
+-const readFile = util.promisify(fs.readFile);
+-const writeFile = util.promisify(fs.writeFile);
+-const chmod = util.promisify(fs.chmod);
+-
+-let _users = null;
+-
+ const get_users = async function() {
+-  if (_users) {
+-    return _users;
+-  } else {
+-    try {
+-      _users = JSON.parse(await readFile(passwd_file, 'utf8'));
+-      return _users;
+-    } catch(err) {
+-      throw(err);
+-    }
+-  }
++  const data = read(passwd_file);
++  if (!data) throw new Error('Administrator credentials are unavailable');
++  return JSON.parse(data);
+ }
+ exports.get_users = get_users;
+
+-const update_users = async function(users) {
+-  try {
+-    await writeFile(passwd_file, JSON.stringify(users), 'utf8');
+-    await chmod(passwd_file, 0600);
+-
+-  } catch (err) {
+-    throw err;
+-  }
+-  _users = null;
+-  return await get_users();
++const update_users = function(change) {
++  const data = read(passwd_file);
++  if (!data) throw new Error('Administrator credentials are unavailable');
++  const users = JSON.parse(data);
++  change(users);
++  atomicWrite(passwd_file, JSON.stringify(users));
+ }
+
+ exports.users_list = async function(req, res) {
+@@ -113,15 +95,9 @@
+         hash: hash
+       };
+
+-    const passwd_user =
+-      {
+-        [req.body.username]: user
+-      };
+-
+-    let users = await get_users();
+-    users[req.body.username] = user;
+-
+-    users = await update_users(users);
++    update_users(users => {
++      Object.defineProperty(users, req.body.username, { value: user, enumerable: true, configurable: true, writable: true });
++    });
+
+     const message = 'Successfully set password for ' + req.body.username;
+     res.render('password', { title: 'Set password', navigate: navigate, user: user, readonly: true, message: message });
+@@ -168,14 +144,13 @@
+   const user = users[req.params.name];
+
+   if (user && (req.session.user.name === user.name)) {
+-    res.render('user_delete', { title: 'Delete user', navigate: navigate, user: user, self_delete: true });
++    return res.render('user_delete', { title: 'Delete user', navigate: navigate, user: user, self_delete: true });
+   }
+
+-  if (req.body.delete === 'delete') {
++  if (req.method === 'POST' && req.body.delete === 'delete') {
+     if (user) {
+       const deleted_user = { name: user.name };
+-      delete users[user.name];
+-      users = await update_users(users);
++      update_users(users => { delete users[user.name]; });
+       res.render('user_delete', { title: 'Deleted user', navigate: navigate, user: deleted_user, deleted: true });
+     } else {
+       res.render('user_delete', { title: 'Delete user', navigate: navigate, user: null });
+--- a/src/controllers/zt.js
++++ b/src/controllers/zt.js
+@@ -5,7 +5,7 @@
+ */
+
+ const got = require('got');
+-const ipaddr = require('ip-address');
++const { Address6 } = require('ip-address');
+ const token = require('./token');
+
+ const ZT_ADDR = process.env.ZT_ADDR || 'localhost:9993';
+@@ -217,10 +217,9 @@
+ }
+
+ function canonicalTarget(target) {
+-  const target6 = new ipaddr.Address6(target);
+-  if (target6.isValid()) {
+-    const parts = target.split('/');
+-    return target6.canonicalForm() + '/' + parts[1];
++  if (typeof target === 'string' && target.length <= 49 && !target.includes('%') && Address6.isValid(target)) {
++    const address = new Address6(target);
++    return address.canonicalForm() + '/' + address.subnetMask;
+   }
+   return target;
+ }
 --- a/src/routes/index.js
 +++ b/src/routes/index.js
+@@ -24,7 +24,7 @@
+   res.render('front_door', {title: 'ztncui'});
+ });
+
+-router.get('/logout', function(req, res) {
++router.post('/logout', function(req, res) {
+   req.session.destroy(function() {
+     res.redirect('/');
+   });
 @@ -42,10 +42,19 @@
    res.render('login', { title: 'Login', message: message });
  });
- 
+
 -router.post('/login', async function(req, res) {
 -  await authenticate(req.body.username, req.body.password, function(err, user) {
 -    if (user) {
@@ -83,3 +392,415 @@
 +  }
  });
  module.exports = router;
+--- a/src/routes/users.js
++++ b/src/routes/users.js
+@@ -9,26 +9,27 @@
+ const auth = require('../controllers/auth');
+ const restrict = auth.restrict;
+ const usersController = require('../controllers/usersController');
++const { asyncRoute } = require('/app/web-admin');
+
+ // GET request for users
+-router.get('/', restrict, usersController.users_list);
++router.get('/', restrict, asyncRoute(usersController.users_list));
+
+ // GET request for password
+-router.get('/:name/password', restrict, usersController.password_get);
++router.get('/:name/password', restrict, asyncRoute(usersController.password_get));
+
+ // POST request for password
+-router.post('/:name/password', restrict, usersController.password_post);
++router.post('/:name/password', restrict, asyncRoute(usersController.password_post));
+
+ // GET request for user create
+-router.get('/create', restrict, usersController.user_create_get);
++router.get('/create', restrict, asyncRoute(usersController.user_create_get));
+
+ // POST request for user create
+-router.post('/create', restrict, usersController.user_create_post);
++router.post('/create', restrict, asyncRoute(usersController.user_create_post));
+
+ // GET request for user delete
+-router.get('/:name/delete', restrict, usersController.user_delete);
++router.get('/:name/delete', restrict, asyncRoute(usersController.user_delete));
+
+ // POST request for user delete
+-router.post('/:name/delete', restrict, usersController.user_delete);
++router.post('/:name/delete', restrict, asyncRoute(usersController.user_delete));
+
+ module.exports = router;
+--- a/src/routes/zt_controller.js
++++ b/src/routes/zt_controller.js
+@@ -10,89 +10,90 @@
+ const router = express.Router();
+
+ var networkController = require('../controllers/networkController');
++const { asyncRoute } = require('/app/web-admin');
+
+ // network routes //
+
+ // GET ZT network controller home page
+-router.get('/', restrict, networkController.index);
++router.get('/', restrict, asyncRoute(networkController.index));
+
+ // Get request for creating a network
+-router.get('/network/create', restrict, networkController.network_create_get);
++router.get('/network/create', restrict, asyncRoute(networkController.network_create_get));
+
+ // POST request for creating a network
+-router.post('/network/create', restrict, networkController.network_create_post);
++router.post('/network/create', restrict, asyncRoute(networkController.network_create_post));
+
+ // GET request to delete network
+-router.get('/network/:nwid/delete', restrict, networkController.network_delete_get);
++router.get('/network/:nwid/delete', restrict, asyncRoute(networkController.network_delete_get));
+
+ // POST request to delete network
+-router.post('/network/:nwid/delete', restrict, networkController.network_delete_post);
++router.post('/network/:nwid/delete', restrict, asyncRoute(networkController.network_delete_post));
+
+ // POST request for Network name
+-router.post('/network/:nwid/name', restrict, networkController.name);
++router.post('/network/:nwid/name', restrict, asyncRoute(networkController.name));
+
+-// GET request for ipAssignmentPool delete
+-router.get('/network/:nwid/ipAssignmentPools/:ipRangeStart/:ipRangeEnd/delete', restrict, networkController.ipAssignmentPool_delete);
++// POST request for ipAssignmentPool delete
++router.post('/network/:nwid/ipAssignmentPools/:ipRangeStart/:ipRangeEnd/delete', restrict, asyncRoute(networkController.ipAssignmentPool_delete));
+
+ // POST request for ipAssignmentPools
+-router.post('/network/:nwid/ipAssignmentPools', restrict, networkController.ipAssignmentPools);
++router.post('/network/:nwid/ipAssignmentPools', restrict, asyncRoute(networkController.ipAssignmentPools));
+
+-// GET request for route delete
+-router.get('/network/:nwid/routes/:target_ip/:target_prefix/delete', restrict, networkController.route_delete);
++// POST request for route delete
++router.post('/network/:nwid/routes/:target_ip/:target_prefix/delete', restrict, asyncRoute(networkController.route_delete));
+
+ // POST request for routes
+-router.post('/network/:nwid/routes', restrict, networkController.routes);
++router.post('/network/:nwid/routes', restrict, asyncRoute(networkController.routes));
+
+ // POST request for dns
+-router.post('/network/:nwid/dns', restrict, networkController.dns);
++router.post('/network/:nwid/dns', restrict, asyncRoute(networkController.dns));
+
+ // POST request for private
+-router.post('/network/:nwid/private', restrict, networkController.private);
++router.post('/network/:nwid/private', restrict, asyncRoute(networkController.private));
+
+ // POST request for v4AssignMode
+-router.post('/network/:nwid/v4AssignMode', restrict, networkController.v4AssignMode);
++router.post('/network/:nwid/v4AssignMode', restrict, asyncRoute(networkController.v4AssignMode));
+
+ // POST request for v6AssignMode
+-router.post('/network/:nwid/v6AssignMode', restrict, networkController.v6AssignMode);
++router.post('/network/:nwid/v6AssignMode', restrict, asyncRoute(networkController.v6AssignMode));
+
+ // GET request for member delete
+-router.get('/network/:nwid/member/:id/delete', restrict, networkController.member_delete);
++router.get('/network/:nwid/member/:id/delete', restrict, asyncRoute(networkController.member_delete));
+
+ // POST request for member delete
+-router.post('/network/:nwid/member/:id/delete', restrict, networkController.member_delete);
++router.post('/network/:nwid/member/:id/delete', restrict, asyncRoute(networkController.member_delete));
+
+ // GET request for any member object
+-router.get('/network/:nwid/member/:id/:object', restrict, networkController.member_object);
++router.get('/network/:nwid/member/:id/:object', restrict, asyncRoute(networkController.member_object));
+
+ // GET request for member detail
+-router.get('/network/:nwid/member/:id', restrict, networkController.member_detail);
++router.get('/network/:nwid/member/:id', restrict, asyncRoute(networkController.member_detail));
+
+ // GET request for easy network setup
+-router.get('/network/:nwid/easy', restrict, networkController.easy_get);
++router.get('/network/:nwid/easy', restrict, asyncRoute(networkController.easy_get));
+
+ // POST request for easy network setup
+-router.post('/network/:nwid/easy', restrict, networkController.easy_post);
++router.post('/network/:nwid/easy', restrict, asyncRoute(networkController.easy_post));
+
+ // GET request for easy member (de)authorization
+-router.get('/network/:nwid/members', restrict, networkController.members);
++router.get('/network/:nwid/members', restrict, asyncRoute(networkController.members));
+
+ // POST request for easy member (de)authorization
+-router.post('/network/:nwid/members', restrict, networkController.members);
++router.post('/network/:nwid/members', restrict, asyncRoute(networkController.members));
+
+-// GET request for member ipAssignment delete
+-router.get('/network/:nwid/member/:id/ipAssignments/:index/delete', restrict, networkController.delete_ip);
++// POST request for member ipAssignment delete
++router.post('/network/:nwid/member/:id/ipAssignments/:index/delete', restrict, asyncRoute(networkController.delete_ip));
+
+ // POST request for member ipAssignment add
+-router.post('/network/:nwid/member/:id/ipAssignments', restrict, networkController.assign_ip);
++router.post('/network/:nwid/member/:id/ipAssignments', restrict, asyncRoute(networkController.assign_ip));
+
+
+ // GET request for any network object
+-router.get('/network/:nwid/:object', restrict, networkController.network_object);
++router.get('/network/:nwid/:object', restrict, asyncRoute(networkController.network_object));
+
+ // GET request for one network
+-router.get('/network/:nwid', restrict, networkController.network_detail);
++router.get('/network/:nwid', restrict, asyncRoute(networkController.network_detail));
+
+ // GET request for list of all networks
+-router.get('/networks', restrict, networkController.network_list);
++router.get('/networks', restrict, asyncRoute(networkController.network_list));
+
+ module.exports = router;
+--- a/src/views/dns.pug
++++ b/src/views/dns.pug
+@@ -30,6 +30,7 @@
+       h3 Change DNS configuration:
+
+   form(method='POST' action='')
++    +csrf_input()
+     .form-group.row
+       .col-sm-12
+         label(for='domain') Domain:
+--- a/src/views/head_layout.pug
++++ b/src/views/head_layout.pug
+@@ -6,6 +6,15 @@
+ mixin nav_item(name, displayName, href)
+   li(class=((navigate && navigate.active === name) ? 'active' : ''))
+     a(href=href) #{displayName}
++
++mixin csrf_input()
++  input(type='hidden' name='_csrf' value=csrfToken)
++
++mixin delete_button(action)
++  form(method='POST' action=action)
++    +csrf_input()
++    button.btn.btn-link.btn-xs(type='submit' aria-label='Delete')
++      i.glyphicon.glyphicon-trash
+
+ mixin json_value(value)
+   - if ((!!value ) && (value.constructor == Object || value.constructor == Array))
+@@ -23,6 +32,13 @@
+     link(rel='stylesheet', href='/stylesheets/style.css')
+     script(src='/jqjs/jquery.min.js')
+     script(src='/bsjs/bootstrap.min.js')
++    meta(name='csrf-token' content=csrfToken)
++    script.
++      $.ajaxPrefilter(function(options, originalOptions, request) {
++        if (!options.crossDomain && !/^(GET|HEAD|OPTIONS)$/i.test(options.type)) {
++          request.setRequestHeader('X-CSRF-Token', document.querySelector('meta[name="csrf-token"]').content);
++        }
++      });
+   body
+     nav.navbar.navbar-inverse.navbar-fixed-top
+       .container-fluid
+@@ -40,7 +56,9 @@
+           ul.nav.navbar-nav.navbar-right
+             li
+               block nav_login
+-                a(href='/logout')
+-                  span.glyphicon.glyphicon-log-out
+-                  |  Logout
++                form.navbar-form(method='POST' action='/logout')
++                  +csrf_input()
++                  button.btn.btn-link(type='submit')
++                    span.glyphicon.glyphicon-log-out
++                    |  Logout
+     block body_content
+--- a/src/views/ipAssignmentPools.pug
++++ b/src/views/ipAssignmentPools.pug
+@@ -16,8 +16,7 @@
+           each ipAssignmentPool in network.ipAssignmentPools
+             tr
+               td(width='3%')
+-                a(href='/controller/network/' + network.nwid + '/ipAssignmentPools/' + ipAssignmentPool.ipRangeStart + '/' + ipAssignmentPool.ipRangeEnd + '/delete')
+-                  i.glyphicon.glyphicon-trash
++                +delete_button('/controller/network/' + network.nwid + '/ipAssignmentPools/' + ipAssignmentPool.ipRangeStart + '/' + ipAssignmentPool.ipRangeEnd + '/delete')
+               td= ipAssignmentPool.ipRangeStart
+               td= ipAssignmentPool.ipRangeEnd
+
+@@ -26,6 +25,7 @@
+       h3 Add new IP Assignment Pool:
+
+   form(method='POST' action='/controller/network/' + network.nwid + '/ipAssignmentPools')
++    +csrf_input()
+     .form-group.row
+       .col-sm-2
+         label(for='ipRangeStart') IP range start:
+--- a/src/views/ipAssignments.pug
++++ b/src/views/ipAssignments.pug
+@@ -12,7 +12,7 @@
+         .alert.alert-warning
+           b Note errors listed below
+
+-  form(method='POST' action='')
++  div
+
+     .row
+       .col-sm-6
+@@ -32,18 +32,18 @@
+           each ipAssignment, index in member.ipAssignments
+             tr
+               td(width='3%')
+-                a.btn.btn-link(role='button' href='/controller/network/' + network.nwid + '/member/' + member.id + '/ipAssignments/' + index + '/delete')
+-                  i.glyphicon.glyphicon-trash
++                +delete_button('/controller/network/' + network.nwid + '/member/' + member.id + '/ipAssignments/' + index + '/delete')
+               td
+                 each digit in ipAssignment
+                   = digit
+
+-          tr
+-            td
+-              button.btn.btn-link(type='submit')
++        form(method='POST' action='')
++          +csrf_input()
++          .input-group
++            input#ipAddress.form-control(type='text' name='ipAddress' placeholder='IP address' value=(undefined===ipAssignment? '' : ipAssignment.ipAddress))
++            span.input-group-btn
++              button.btn.btn-default(type='submit' aria-label='Add IP address')
+                 i.glyphicon.glyphicon-plus
+-            td
+-              input#ipAddress.form-control(type='text' name='ipAddress' placeholder='IP address' value=(undefined===ipAssignment? '' : ipAssignment.ipAddress))
+
+     .row
+       .col-sm-12
+@@ -57,8 +57,7 @@
+             each route in network.routes
+               tr
+                 td(width='3%')
+-                  a.btn.btn-link(role='button' href='/controller/network/' + network.nwid + '/routes/' + route.target + '/delete')
+-                    i.glyphicon.glyphicon-trash
++                  +delete_button('/controller/network/' + network.nwid + '/routes/' + route.target + '/delete')
+                 td= route.target
+                 td= route.via
+
+--- a/src/views/login.pug
++++ b/src/views/login.pug
+@@ -19,6 +19,7 @@
+             strong= message
+
+     form.form-horizontal(method='POST' action='')
++      +csrf_input()
+       .form-group.row
+         .col-sm-2
+           label.control-label(for='username') Username:
+--- a/src/views/member_delete.pug
++++ b/src/views/member_delete.pug
+@@ -19,6 +19,7 @@
+           li After deleting a member, you may see them appear in the list of members again.  This is a ZeroTier issue.  Just get the user to leave the network.
+
+     form(method='POST' action='')
++      +csrf_input()
+       button.btn.btn-primary(type='submit', name='delete') Delete #{member.name} (#{member.id})
+       = ' '
+       a.btn.btn-default(href='/controller/network/' + network.nwid + '#members',
+--- a/src/views/network_create.pug
++++ b/src/views/network_create.pug
+@@ -15,6 +15,7 @@
+   else
+
+     form(method='POST' action='')
++      +csrf_input()
+       .form-group.row
+         .col-sm-2
+           label(for='name') Network name:
+--- a/src/views/network_delete.pug
++++ b/src/views/network_delete.pug
+@@ -14,6 +14,7 @@
+     .alert.alert-danger
+       strong Warning! Deleting a network cannot be undone
+     form(method='POST' action='')
++      +csrf_input()
+       button.btn.btn-danger(type='submit', name='delete') Delete #{network.name} (#{network.nwid})
+       = ' '
+       a.btn.btn-default(href='/controller/networks', name='cancel', role='button') Cancel
+--- a/src/views/network_detail.pug
++++ b/src/views/network_detail.pug
+@@ -78,6 +78,7 @@
+       });
+     h3#members Members (#{members.length})
+     form(method='POST' action='')
++      +csrf_input()
+       table.table.table-responsive.table-striped.table-hover
+         tr
+           td(width='3%')
+--- a/src/views/network_easy.pug
++++ b/src/views/network_easy.pug
+@@ -56,6 +56,7 @@
+       strong= message
+
+   form(method='POST' action='')
++    +csrf_input()
+     .form-group
+       button.btn.btn-link.float-right(type='button' data-toggle='collapse' data-target='#help') Help
+       .collapse(id='help')
+--- a/src/views/password.pug
++++ b/src/views/password.pug
+@@ -13,6 +13,7 @@
+           strong= message
+
+   form.form-horizontal(method='POST' action='')
++    +csrf_input()
+     .form-group.row
+       .col-sm-2
+         label(for='username') Username:
+--- a/src/views/private.pug
++++ b/src/views/private.pug
+@@ -14,6 +14,7 @@
+     });
+
+   form(method='POST' action='')
++    +csrf_input()
+     table.table.table-responsive.table-striped.table-hover
+       tr
+         td(width='3%')
+--- a/src/views/routes.pug
++++ b/src/views/routes.pug
+@@ -16,8 +16,7 @@
+           each route in network.routes
+             tr
+               td(width='3%')
+-                a(href='/controller/network/' + network.nwid + '/routes/' + route.target + '/delete')
+-                  i.glyphicon.glyphicon-trash
++                +delete_button('/controller/network/' + network.nwid + '/routes/' + route.target + '/delete')
+               td= route.target
+               td= route.via
+
+@@ -26,6 +25,7 @@
+       h3 Add new route:
+
+   form(method='POST' action='/controller/network/' + network.nwid + '/routes')
++    +csrf_input()
+     .form-group.row
+       .col-sm-12
+         label(for='target') Target:
+--- a/src/views/user_delete.pug
++++ b/src/views/user_delete.pug
+@@ -22,6 +22,7 @@
+     .alert.alert-danger
+       strong Warning! Deleting a user cannot be undone
+     form(method='POST' action='')
++      +csrf_input()
+       button.btn.btn-danger(type='submit', name='delete' value='delete') Delete #{user.name}
+       = ' '
+       a.btn.btn-default(href='/users', name='cancel', role='button') Cancel
+--- a/src/views/v4AssignMode.pug
++++ b/src/views/v4AssignMode.pug
+@@ -14,6 +14,7 @@
+     });
+
+   form(method='POST' action='')
++    +csrf_input()
+     table.table.table-responsive.table-striped.table-hover
+       tr
+         td(width='3%')
+--- a/src/views/v6AssignMode.pug
++++ b/src/views/v6AssignMode.pug
+@@ -14,6 +14,7 @@
+     });
+
+   form(method='POST' action='')
++    +csrf_input()
+     table.table.table-responsive.table-striped.table-hover
+       tr
+         td(width='3%')

@@ -48,8 +48,18 @@ function atomicWrite(file, data) {
     const directory = path.dirname(file);
     fs.mkdirSync(directory, { recursive: true });
     const tmp = path.join(directory, '.planet-write-' + randomBytes(12).toString('hex'));
-    fs.writeFileSync(tmp, data, { mode: 0o600, flag: 'wx', flush: true });
-    fs.renameSync(tmp, file);
+    const fd = fs.openSync(tmp, 'wx', 0o600);
+    try {
+        try {
+            fs.writeFileSync(fd, data, { flush: true });
+        } finally {
+            fs.closeSync(fd);
+        }
+        fs.renameSync(tmp, file);
+    } catch (error) {
+        try { fs.unlinkSync(tmp); } catch { /* Keep the original write error. */ }
+        throw error;
+    }
     syncDirectory(directory);
 }
 
@@ -130,4 +140,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { read, value, parseJson, syncDirectory, atomicWrite, legacyEnv, resolveSettings, validate };
+module.exports = { read, value, parseJson, syncDirectory, atomicWrite, legacyEnv, resolveSettings, validate, canonicalPort };

@@ -60,6 +60,8 @@
 
 > 不建议将管理界面或文件下载入口直接暴露给不受信任的访问者。下载链接中的密钥也应当按凭据保管。
 
+依赖回环绑定限制管理入口时，请使用 Docker Engine 28.0.0 或更新版本。旧版 Docker 同一二层网络上的主机可能访问该端口，请先用宿主机防火墙限制访问。 [Docker 端口发布说明](https://docs.docker.com/engine/network/port-publishing/)
+
 ### 2. 运行部署脚本
 
 ```bash
@@ -178,7 +180,9 @@ sudo zerotier-cli peers
 
 支持将 `data/`、`data/zerotier/` 链接到其他磁盘，也支持直接将磁盘挂载在 `data/zerotier/` 或表中的四个持久化目录。升级会在 `data/` 中备份完整数据树。回滚时请保持原来的挂载，脚本会核对磁盘并还原四个目录，然后启动旧容器。若四个目录分别指向外部路径，请在对应目录使用绑定挂载（bind mount）。请将挂载点设在表中目录本身，更深层的挂载会在停服前被检出。
 
-自动升级适用于连接到单个 Docker bridge 网络、且已发布 ZeroTier 的 TCP 和 UDP 端口、管理端口和下载端口的容器。宿主机绑定地址和端口会随升级保留。
+自动升级适用于连接到单个 Docker bridge 网络、且已发布 ZeroTier 的 TCP 和 UDP 端口、管理端口和下载端口的容器。脚本在停服前核对实际挂载和网络配置。已记录的宿主机绑定会随升级和重装保留。若旧容器已丢失且没有绑定记录，重装会先请你确认默认发布方式。
+
+带静态 IP 或自定义网络别名的容器需要手动升级，并在重建时带上这些设置。若旧容器已停止且没有挂载记录，先核实数据盘并启动原容器，再执行自动升级或删除数据。
 
 1. 在原项目目录运行 `./deploy.sh`，选择 **3. 更新**。默认会先拉取镜像，再与当前容器比较镜像 ID。如果有新版本，确认升级后会停止旧容器并备份整个 `data/zerotier/`。升级期间服务会短暂停止，磁盘需能容纳一份完整的数据副本。
 2. 脚本会检查 ZeroTier 本地控制接口、管理页面和带密钥的 `planet` 下载。新容器通过检查且实际端口绑定与升级前一致后，脚本删除旧容器，并输出升级前的数据备份路径，默认位于 `data/zerotier.backup.<标识>/data/`。备份中包含私钥。已接入的客户端继续使用原有的 `planet`、Network ID 和授权。
@@ -190,6 +194,7 @@ sudo zerotier-cli peers
 
 - 将首次密码和重置密码保存到密码管理器。新装的公开端口无需包含管理端口。
 - 远程管理可使用 SSH 隧道或 HTTPS 反向代理。升级会沿用旧容器的绑定，原先对公网开放的管理端口需要通过防火墙限制访问。
+- 升级时会轮换仍使用出厂密码的旧 `admin` 账号。可用首次密码领取命令取回随机密码。已自定义的密码会沿用。
 - 下载链接和相关密钥应按凭据保管。新版文件服务复用 `data/zerotier/config/file_server.key`。首次生成时使用 `SECRET_KEY`，未设置则生成随机密钥。回滚到旧版镜像后，若旧链接失效，可在菜单 **4. 查看信息** 获取当前下载地址。
 
 以下示例假设 Nginx 与容器运行在同一台主机，证书已自行准备，且 `3443` 是实际映射的管理端口。下列配置将 HTTPS 请求转发至宿主机回环地址：
@@ -251,9 +256,11 @@ services:
 
 > 示例端口与容器环境变量保持一致；如果修改监听端口，请同步修改映射和防火墙规则。**不要把填有真实公网 IP、下载密钥或私密配置的 Compose 文件提交到公开仓库。**手动用 Compose 更新容器时，请自行停服并备份整个数据目录。自动备份和回滚由 `./deploy.sh` 的“更新”菜单执行。
 
+当外部 ZeroTier UDP 端口和容器内的 `ZT_PORT` 不同时，在容器环境中用 `ZT_ADVERTISED_PORT` 指定客户端实际连接的端口。
+
 ### 正式镜像发布
 
-`Verify and publish ZeroTier image` 工作流分别在 `amd64` 和 `arm64` 上验证镜像。维护者可在 `master` 手动运行并勾选 `publish`，将通过验证的镜像发布到 `xubiaolin/zerotier-planet`。发布任务使用 `dockerhub-production` 环境的 Docker Hub 凭据。镜像包含 ZeroTier 的源代码可见控制器，发布和商业使用须遵守其许可条款。 [控制器许可](https://github.com/zerotier/ZeroTierOne/blob/1.16.2/nonfree/LICENSE.md)
+`Verify and publish ZeroTier image` 工作流分别在 `amd64` 和 `arm64` 上验证镜像。手动验证会重新加载本次构建的镜像，并用公开的 Alpine 镜像验证跨任务归档传递。维护者可在 `master` 手动运行并勾选 `publish`，将通过验证的镜像发布到 `xubiaolin/zerotier-planet`。发布任务使用 `dockerhub-production` 环境的 Docker Hub 凭据，并在写入正式标签前确认运行对应当前 `master`。镜像的 `/usr/share/doc/zerotier/SOURCE.txt` 记录对应源码和构建资料。镜像包含 ZeroTier 的源代码可见控制器，发布和商业使用须遵守其许可条款。 [控制器许可](https://github.com/zerotier/ZeroTierOne/blob/1.16.2/nonfree/LICENSE.md)
 
 使用已发布镜像时，可以将 Compose 示例改为 `image: xubiaolin/zerotier-planet:<已验证版本>` 并移除 `build`。
 
@@ -281,7 +288,7 @@ services:
 
 ### 服务器公网 IP 或通信端口变了怎么办？
 
-重装和原地升级都会沿用已有节点地址。迁移公网 IP 或 ZeroTier 通信端口前，请先备份整个 `data/zerotier/`。新地址需要写入节点端点配置，并用原签名材料生成与新端点匹配的 `planet` 和 `moon`，再将更新的文件分发给使用它们的客户端。
+重装和原地升级都会沿用已有节点地址。迁移公网 IP 或 ZeroTier 通信端口前，请先备份整个 `data/zerotier/`。同步更新节点端点配置和签名文件，并将更新后的 `planet` 和 `moon` 分发给客户端。启动时会检查配置与签名文件的端点是否一致。
 
 ### 忘记管理密码怎么办？
 

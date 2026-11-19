@@ -124,6 +124,20 @@ if DOCKER_IMAGE="$legacy_id" upgrade <<< y; then exit 1; fi
 if ( load_config() { return 1; }; upgrade <<< y ); then exit 1; fi
 [[ $(docker inspect --format '{{.State.StartedAt}}' "$old") == "$started" ]]
 assert_original
+if [[ $layout_test == mounts ]]; then
+    mkdir -p "$work/overlapping/child"
+    command sudo -n mount --bind "$work/overlapping" "$DIST_PATH"
+    command sudo -n mount --bind "$work/overlapping/child" "$CONFIG_PATH"
+    test_mounts=("$CONFIG_PATH" "$DIST_PATH" "${test_mounts[@]}")
+    if upgrade_layout; then exit 1; fi
+    if verify_mounts "$CONTAINER_NAME"; then exit 1; fi
+    command sudo -n umount "$CONFIG_PATH"
+    command sudo -n umount "$DIST_PATH"
+    test_mounts=("${test_mounts[@]:2}")
+    mkdir -p "$work/fresh"/{config,dist,one,ztncui,lost+found}
+    touch "$work/fresh/.install-settings"
+    ZEROTIER_PATH="$work/fresh" pending_installation "$DOCKER_IMAGE"
+fi
 upgrade <<< n
 assert_original
 outcome=unhealthy
@@ -171,6 +185,7 @@ assert_original
 [[ ! -e $work/old-readiness-checked ]]
 unset old_unhealthy
 # 已停止的半成品应保持停止。
+save_launch_settings "$CONTAINER_NAME"
 docker stop "$old" >/dev/null
 outcome=unhealthy
 if upgrade repair </dev/null; then exit 1; fi
@@ -191,7 +206,27 @@ if (
     upgrade <<< y
 ); then exit 1; fi
 assert_original
-upgrade <<< y
+if [[ $layout_test == directory ]]; then
+    # 提交后候选容器丢失，恢复应保留已提交的数据和端口信息。
+    if (
+        initial_password_hint() { kill -KILL "$BASHPID"; }
+        upgrade <<< y
+    ) 2>"$work/commit-crash.log"; then exit 1; fi
+    [[ -e $ZEROTIER_PATH.upgrade/committed ]]
+    docker rm -f "$CONTAINER_NAME" >/dev/null
+    recover_upgrade
+    [[ ! -e $ZEROTIER_PATH.upgrade ]]
+    [[ -f $DIST_PATH/candidate-only ]]
+    load_config
+    declare -a recovered_args=()
+    recovered_bindings=
+    restore_launch_settings "$DOCKER_IMAGE" recovered_args recovered_bindings
+    [[ $recovered_bindings == "$original_bindings" ]]
+    docker run -d --name "$CONTAINER_NAME" --label "test-instance=$CONTAINER_NAME" \
+        "${fixture_mounts[@]}" "${recovered_args[@]}" --entrypoint sleep "$DOCKER_IMAGE" 3600 >/dev/null
+else
+    upgrade <<< y
+fi
 [[ $(port_bindings "$CONTAINER_NAME" NetworkSettings.Ports) == "$original_bindings" ]]
 [[ $(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$CONTAINER_NAME") == always ]]
 docker exec "$CONTAINER_NAME" sh -ec '

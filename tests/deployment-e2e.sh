@@ -42,11 +42,25 @@ for ((i=0; i<50; i++)); do [[ ! -s ports ]] || break; sleep .1; done
 read -r port api files occupied mapped_api <ports
 address=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
 
+fetch_form() {
+    curl --fail --silent --show-error --max-time 5 --noproxy '*' "$@" |
+        python3 -c '
+import re
+import sys
+match = re.search(r"name=\"_csrf\"\s+value=\"([A-Za-z0-9_-]+)\"", sys.stdin.read())
+if match is None:
+    sys.exit("Form is missing its CSRF token")
+print(match[1])'
+}
+
 login() {
-    local port=$1 password=$2
+    local port=$1 password=$2 url cookies token
     shift 2
-    printf 'username=admin&password=%s' "$password" | curl --silent --show-error --max-time 5 \
-        --noproxy '*' --data-binary @- "$@" "http://127.0.0.1:$port/login"
+    url="http://127.0.0.1:$port/login"
+    cookies="$work/login.cookies"
+    token=$(fetch_form -c "$cookies" "$url") || return 1
+    printf 'username=admin&password=%s&_csrf=%s' "$password" "$token" | \
+        curl --silent --show-error --max-time 5 --noproxy '*' -b "$cookies" --data-binary @- "$@" "$url"
 }
 # Exercise first installation through the menu, with the same ports reused
 # later by the separate legacy fixture after this container has been removed.
@@ -56,6 +70,7 @@ mkdir first-install
     if printf '1\n%s\n%s\n%s\nn\ninvalid IP\n\n' "$port" "$api" "$files" |
         DOCKER_IMAGE=$candidate "$project/deploy.sh" >/dev/null 2>&1; then exit 1; fi
     [[ ! -e data/zerotier/.install-settings ]]
+    mkdir -p data/zerotier/lost+found
     if printf '1\n%s\n%s\n%s\nn\n%s\n\n' "$port" "$occupied" "$files" "$address" |
         DOCKER_IMAGE=$candidate "$project/deploy.sh" >conflict.log 2>&1; then exit 1; fi
     if printf '1\nn\n' | DOCKER_IMAGE=$candidate "$project/deploy.sh" >>conflict.log 2>&1; then exit 1; fi
@@ -89,6 +104,12 @@ mkdir first-install
     [[ $(login "$api" "$password" -o /dev/null -w '%{redirect_url}') == "http://127.0.0.1:$api/login" ]]
     [[ $(login "$api" "$reset_password" -o /dev/null -w '%{redirect_url}') == \
         "http://127.0.0.1:$api/users/admin/password" ]]
+    password_url="http://127.0.0.1:$api/users/admin/password"
+    login "$api" "$reset_password" -o /dev/null -c cookies
+    token=$(fetch_form -b cookies "$password_url")
+    printf 'username=admin&password1=%s&password2=%s&_csrf=%s' "$password" "$password" "$token" | \
+        curl --fail --silent --show-error --max-time 5 --noproxy '*' -b cookies --data-binary @- "$password_url" >/dev/null
+    [[ $(login "$api" "$password" -o /dev/null -w '%{redirect_url}') == "http://127.0.0.1:$api/controller" ]]
     docker rm -f "$CONTAINER_NAME" >/dev/null
 )
 echo '首次安装、端口冲突纠正、管理登录、密码重置和容器丢失后的原地重装通过。'
@@ -147,20 +168,31 @@ sys.exit(not any(p["address"]==sys.argv[1] and any(path["active"] and path["last
 }
 fingerprint() {
     docker exec "$CONTAINER_NAME" sh -ec 'cd /var/lib/zerotier-one
-        sha256sum identity.secret previous.c25519 current.c25519 /app/dist/planet /app/dist/*.moon /app/ztncui/src/etc/passwd'
+        sha256sum identity.secret previous.c25519 current.c25519 /app/dist/planet /app/dist/*.moon'
+}
+password_fingerprint() {
+    docker exec "$CONTAINER_NAME" sha256sum /app/ztncui/src/etc/passwd
 }
 connected
 original=$(fingerprint)
+legacy_password=$(password_fingerprint)
 echo '旧版客户端已连接并获得地址。'
 # Restart the same client from its existing configuration after upgrading.
 printf '3\ny\n' | DOCKER_IMAGE=$candidate "$project/deploy.sh" >/dev/null
 [[ $(fingerprint) == "$original" ]]
 [[ $(docker port "$CONTAINER_NAME" | sort) == "$published" ]]
+rotated_password=$(password_fingerprint)
+[[ $rotated_password != "$legacy_password" ]]
+initial=$(docker exec "$CONTAINER_NAME" node /app/admin-password.js initial)
+[[ $initial =~ ^[A-Za-z0-9_-]{20,}$ ]]
+[[ $(login "$mapped_api" "$initial" -o /dev/null -w '%{http_code} %{redirect_url}') == \
+    "302 http://127.0.0.1:$mapped_api/users/admin/password" ]]
 docker restart "$client" >/dev/null
 connected
 controller "$network_id/member/$client_id" | python3 -c 'import json,sys;assert json.load(sys.stdin)["authorized"]'
 printf '1\n' | DOCKER_IMAGE=$candidate "$project/deploy.sh" >/dev/null
 [[ $(fingerprint) == "$original" ]]
+[[ $(password_fingerprint) == "$rotated_password" ]]
 echo '原地升级和重复安装通过，原客户端仍获得网络授权。'
 # An unhealthy candidate writes into both controller and download directories.
 docker build -q --build-arg "SOURCE=$legacy" -t "$broken" - <<'DOCKERFILE' >/dev/null
@@ -177,8 +209,15 @@ if printf '3\ny\n' | DOCKER_IMAGE=$bad_id "$project/deploy.sh" >/dev/null; then
 fi
 [[ $(docker inspect --format '{{.Image}}' "$CONTAINER_NAME") == "$candidate" ]]
 [[ $(fingerprint) == "$original" ]]
+[[ $(password_fingerprint) == "$rotated_password" ]]
 [[ $(docker port "$CONTAINER_NAME" | sort) == "$published" ]]
 docker exec "$CONTAINER_NAME" test ! -e /var/lib/zerotier-one/controller.d/failed-update
 docker restart "$client" >/dev/null
 connected
 echo '故障升级恢复了原镜像和完整数据，原客户端可以重新连接。'
+
+docker rm -f "$CONTAINER_NAME" >/dev/null
+printf '1\n' | DOCKER_IMAGE=$candidate "$project/deploy.sh" >/dev/null
+[[ $(docker port "$CONTAINER_NAME" | sort) == "$published" ]]
+[[ $(fingerprint) == "$original" && $(password_fingerprint) == "$rotated_password" ]]
+echo '容器丢失后的重装保留了宿主机端口绑定和管理员密码。'
