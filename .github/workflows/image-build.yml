@@ -1,43 +1,97 @@
-name: Docker Build on ZeroTier
+name: Verify and publish ZeroTier image
 
 on:
+  pull_request:
+    branches: [master]
   push:
-    branches:
-      - master  # 当 master 分支有推送时触发
+    branches: [master]
   schedule:
-    - cron: '0 */6 * * *'  # 每6小时检查一次
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified image to Docker Hub from master
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check-and-build:
-    runs-on: ubuntu-latest
+  image:
+    name: Build and test on the shared Linux runner
+    runs-on: [self-hosted, Linux, X64, docker-zerotier-planet, isolated-docker]
+    timeout-minutes: 90
+    env:
+      CANDIDATE: zerotier-planet-ci:${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - name: Get latest Tailscale tag
-        id: get_tag
+      - name: Check runner and shell scripts
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/zerotier/ZeroTierOne/tags | jq -r '.[0].name')
-          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          docker version
+          docker buildx version
+          test -c /dev/net/tun
+          for script in build.sh deploy.sh patch/*.sh scripts/*.sh tests/*.sh; do
+            bash -n "$script"
+          done
+          sh -n patch/healthcheck.sh
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Select ZeroTier version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/heads/master ]]; then
+            release=$(curl --fail --silent --show-error --retry 3 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest)
+            version=$(jq -er '.tag_name' <<<"$release")
+          else
+            version=$(sed -n 's/^ARG TAG=//p' Dockerfile)
+          fi
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "tag=$version" >> "$GITHUB_OUTPUT"
+          echo "Testing ZeroTier $version on $RUNNER_NAME"
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Build candidate image
+        env:
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: docker buildx build --load --platform linux/amd64 --build-arg "TAG=$VERSION" --tag "$CANDIDATE" .
 
-      - name: Build and push tagged version
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/zerotier-planet-test:${{ steps.get_tag.outputs.latest_tag }}
-          build-args: |
-            TAG=${{ steps.get_tag.outputs.latest_tag }} 
+      - name: Test container initialization and signing
+        run: tests/container-init.sh "$CANDIDATE"
+
+      - name: Test upgrades and rollback across storage layouts
+        run: |
+          for layout in directory parent-link root-link mounts; do
+            echo "::group::Upgrade tests ($layout)"
+            TEST_UPGRADE_LAYOUT="$layout" tests/upgrade.sh
+            echo "::endgroup::"
+          done
+
+      - name: Test legacy client reconnection after upgrade and rollback
+        run: tests/deployment-e2e.sh "$CANDIDATE"
+
+      - name: Publish tested image to Docker Hub
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'schedule' || inputs.publish)
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          export DOCKER_CONFIG
+          DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/docker-login.XXXXXXXX")
+          trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          repository="$DOCKERHUB_USERNAME/zerotier-planet-test"
+          for tag in "$VERSION" latest; do
+            docker tag "$CANDIDATE" "$repository:$tag"
+            docker push "$repository:$tag"
+          done
