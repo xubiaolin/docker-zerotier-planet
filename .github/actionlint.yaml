@@ -1,4 +1,0 @@
-self-hosted-runner:
-  labels:
-    - docker-zerotier-planet
-    - isolated-docker

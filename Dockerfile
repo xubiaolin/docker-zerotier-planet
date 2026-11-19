@@ -17,19 +17,27 @@ RUN make -f Makefile -f mkworld.mk ZT_NONFREE=1 mkworld \
 FROM builder AS ztncui
 WORKDIR /build
 RUN git clone https://github.com/key-networks/ztncui.git \
-    && cd ztncui && git checkout --detach 1b2284864de48d2dcae22582fff122fe24909c3d \
+    && cd ztncui && git checkout --detach 1b2284864de48d2dcae22582fff122fe24909c3d
+WORKDIR /build/ztncui
+COPY patch/ztncui/package-lock.json src/
+COPY patch/ztncui/login.patch /tmp/ztncui-login.patch
+RUN git apply /tmp/ztncui-login.patch \
     && cd src && npm pkg set dependencies.argon2=0.44.0 \
-    && npm install --omit=dev --no-audit --no-fund \
+    && npm ci --omit=dev --no-audit --no-fund \
     && node -e "require('argon2')"
 
 FROM node:22-bookworm-slim
 LABEL org.zerotier-planet.retry-safe="1"
+LABEL org.zerotier-planet.secure-admin="1"
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates util-linux \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=zerotier /build/ZeroTierOne/zerotier-one /usr/sbin/
 COPY --from=zerotier /build/ZeroTierOne/mkworld /usr/local/bin/
+COPY --from=zerotier /build/ZeroTierOne/LICENSE.txt /build/ZeroTierOne/LICENSE-MPL.txt /usr/share/doc/zerotier/
+COPY --from=zerotier /build/ZeroTierOne/nonfree/LICENSE.md /usr/share/doc/zerotier/nonfree/LICENSE.md
 RUN ln -s zerotier-one /usr/sbin/zerotier-idtool && ln -s zerotier-one /usr/sbin/zerotier-cli
 COPY --from=ztncui /build/ztncui/src /opt/ztncui/src
+COPY --from=ztncui /build/ztncui/LICENSE /usr/share/doc/ztncui/LICENSE
 RUN mv /opt/ztncui/src/etc /opt/ztncui/etc.defaults \
     && ln -s /app/ztncui/src/etc /opt/ztncui/src/etc \
     && ln -s /app/ztncui/src/.env /opt/ztncui/src/.env

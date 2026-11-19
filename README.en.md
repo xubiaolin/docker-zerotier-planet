@@ -4,7 +4,7 @@
 
 Deploy your own ZeroTier Planet on a Linux server with Docker. The deployment also provides a web-based network management interface and a download service for `planet` and `moon` files. It is intended for users who want to manage their own ZeroTier root node and networks.
 
-> **Before you start:** Clients must replace their `planet` file to use the self-hosted Planet. Running your own root node does not guarantee direct connections between devices, nor does it mean all application traffic will—or will not—pass through this server. The management interface uses **HTTP** by default; change the default password promptly after deployment.
+> **Before you start:** Clients must replace their `planet` file to use the self-hosted Planet. Running your own root node does not guarantee direct connections between devices, nor does it mean all application traffic will—or will not—pass through this server. The management interface on a new installation uses HTTP on the host loopback address.
 
 <a href="https://edgeone.ai/?from=github">
   <img src="assets/edgeone-logo.png" alt="EdgeOne Logo" /> CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne
@@ -48,14 +48,14 @@ WeChat official account:
 
 ### 1. Prepare a Server
 
-Prepare a Linux server with a **public IPv4 or IPv6 address**. Install Docker and Git, and make sure the host has `flock` and `findmnt` (util-linux). The image build script targets `linux/amd64` and `linux/arm64`. If you have not installed Docker, consult the [official Docker installation guide](https://docs.docker.com/engine/install/).
+Prepare a Linux server with a **public IPv4 or IPv6 address**. Install Docker and Git, and make sure the host has `flock` and `findmnt` (util-linux). The image verification workflow covers `linux/amd64` and `linux/arm64`. If you have not installed Docker, consult the [official Docker installation guide](https://docs.docker.com/engine/install/).
 
 Allow the ports you actually use through both the server firewall and your cloud provider's security group. You can change the default ports when the installer prompts you:
 
 | Default port | Protocol | Purpose |
 | --- | --- | --- |
 | `9994` | TCP, UDP | ZeroTier communication |
-| `3443` | TCP | Web management interface; **HTTP** by default, not HTTPS |
+| `3443` | TCP | Web management interface, bound to `127.0.0.1` on a new installation |
 | `3000` | TCP | `planet` / `moon` download service; expose it externally only if remote downloads are needed |
 
 > Avoid exposing the management interface or download endpoint to untrusted users. Treat download links and their keys as credentials.
@@ -70,11 +70,11 @@ cd docker-zerotier-planet
 
 For a first installation, select **1. Install or reinstall (keep existing data)** and enter the ZeroTier, management interface, and file download ports. Then choose whether to detect your server's public IP automatically or enter it manually. The script calls Docker directly and stores configuration and data under `data/zerotier/` in the current directory.
 
-**To retry an interrupted installation or reinstall, return to the original project directory and select 1 again.** The script reuses the saved IP addresses, ports, and node identity. It tries to start a stopped container running the new image and recreates a missing container from the original data. If a legacy container is stopped or fails its health check, the script uses the upgrade backup procedure to recover the instance. To upgrade a healthy instance, select **3. Update**.
+**To retry an interrupted installation or reinstall, return to the original project directory and select 1 again.** The script reuses the saved IP addresses, ports, and node identity. If a port is already in use on the first start, you can correct it on retry. It tries to start a stopped container running the new image and recreates a missing container from the original data. If a legacy container is stopped or fails its health check, the script uses the upgrade backup procedure to recover the instance. To upgrade a healthy instance, select **3. Update**.
 
-The default image is `xubiaolin/zerotier-planet:latest`. If the selected default image is an older version, the menu builds a version that supports safe installation retries from the current source tree. The first build downloads dependencies and compiles ZeroTier. During an upgrade, this happens before the old service stops. If an image pull fails, check Docker's connection to the image registry.
+The default image is `xubiaolin/zerotier-planet:latest`. If the selected default image is an older version, the menu builds an updated image from the current source tree. The first build downloads dependencies and compiles ZeroTier. During an upgrade, this happens before the old service stops. If an image pull fails, check Docker's connection to the image registry.
 
-You can also build ahead of time and pass the image ID on the deployment host to the menu. An image selected with `DOCKER_IMAGE` must support safe installation retries. Select **1** for a fresh install or **3** to upgrade an existing deployment. If building on another host, use the deployment host's architecture and load the image onto the deployment host first.
+You can also build ahead of time and pass the image ID on the deployment host to the menu. For `DOCKER_IMAGE`, use a build from this checkout or an image verified by the current release workflow. Select **1** for a fresh install or **3** to upgrade an existing deployment. If building on another host, use the deployment host's architecture and load the image onto the deployment host first.
 
 ```bash
 docker build -t zerotier-planet:local .
@@ -90,7 +90,13 @@ docker logs myztplanet
 
 ### 3. Create a Network and Download Files
 
-1. Open `http://<server-public-IP>:3443` (or the management port you selected) and sign in. **The default username is `admin` and the default password is `password`; change the password immediately after your first login.**
+1. On the server, retrieve the generated initial password:
+
+   ```bash
+   docker exec myztplanet node /app/admin-password.js initial
+   ```
+
+   The command displays the password once. Open `http://127.0.0.1:3443` and sign in as `admin`. To connect from another machine, run `ssh -L 3443:127.0.0.1:3443 user@server` and open the same address locally. Substitute your container name or management port if you changed them.
 2. On the **Networks** page, click **Add Network**, enter a name, and create the network. Record the generated **Network ID**. To assign virtual IP addresses automatically, configure a range under **Easy Setup** in the network settings.
 3. Obtain the `planet` file from the download URL printed by the script or from `./data/zerotier/dist/` on the server. Distribute it to clients that need to connect to this private Planet. The `moon` file is generated in the same directory; this deployment also configures the node itself as a moon, and other nodes may download the file as needed.
 
@@ -172,19 +178,21 @@ The deployment script mounts the following host directories into the container. 
 
 You can link `data/` or `data/zerotier/` to another disk, or mount storage directly at `data/zerotier/` or any of the four persistent directories in the table. Upgrades back up the entire data tree under `data/`. Keep the original mounts available during recovery. The script verifies the mounted directories and restores their contents before starting the old container. Use bind mounts for individual directories stored elsewhere. Place each mount at the directory listed in the table. The script checks for deeper mounts before stopping the service.
 
+Automatic upgrades require one Docker bridge network and published ports for ZeroTier TCP and UDP, the management interface, and downloads. The upgrade preserves the host addresses and port numbers.
+
 1. Run `./deploy.sh` from the original project directory and select **3. Update**. By default the script pulls the image and compares its ID with the running version. If a new version is available and you confirm the upgrade, it stops the old container and backs up all of `data/zerotier/`. Allow for downtime and enough disk space for a full copy of the data.
-2. The health check probes the local ZeroTier control interface, the management page, and a `planet` download with the saved key. Once the new container passes, the script removes the old container and prints the backup path. By default, the pre-upgrade data is in `data/zerotier.backup.<id>/data/`. The backup contains private keys. Existing clients keep their `planet` file, Network ID, and authorization.
-3. If the backup fails, the script tries to restart the old container. If the new container fails to start or pass its health check, the script automatically restores the pre-upgrade data and the old container. If the upgrade process is interrupted, run `./deploy.sh` again from the original project directory and select **4. View Information**. The script handles the interrupted upgrade first.
+2. The health check probes the local ZeroTier control interface, the management page, and a `planet` download with the saved key. After the new container passes and Docker confirms the original port bindings, the script removes the old container and prints the backup path. By default, the pre-upgrade data is in `data/zerotier.backup.<id>/data/`. The backup contains private keys. Existing clients keep their `planet` file, Network ID, and authorization.
+3. If the backup fails, the script tries to restart the old container. If the new container fails to start or pass its health check, the script automatically restores the pre-upgrade data and the old container. If the upgrade process is interrupted, run `./deploy.sh` again from the original project directory and select **4. View Information**. The script handles the interrupted upgrade first. After rollback finishes, the menu can still be used if the old service remains unhealthy.
 
 If an installation retry reports missing or conflicting identity or signing keys, keep the current data for inspection. If you have a complete backup, stop the container and move the current data directory aside. Restore the full directory from that backup to `data/zerotier/`, preserving file ownership and permissions, and start the service with the image that matches the backup. The exported `dist/planet` file alone cannot restore the server's private keys, networks, or member authorizations.
 
 ### Protect the Management and Download Endpoints
 
-- Change the default password immediately after the first login. The management interface uses `http://` by default; port `3443` **does not imply TLS**.
-- Restrict access to the management port with a firewall. If exposing the interface externally, consider terminating HTTPS with a reverse proxy such as Nginx.
+- Save your initial or reset password in a password manager. New installations require no public firewall rule for the management port.
+- Use an SSH tunnel or an HTTPS reverse proxy for remote management. Upgrades preserve the previous port bindings. Restrict public access on older installations with a firewall.
 - Treat download links and keys as credentials. The updated file service reuses `data/zerotier/config/file_server.key`. When first creating the file, it uses `SECRET_KEY` if set or generates a random key. If a download link stops working after a rollback to an older image, select **4. View Information** to get the current URL.
 
-The following example assumes Nginx and the container run on the same host, you already have a certificate, and `3443` is the management port you mapped. Also restrict direct public access to `3443` with a firewall:
+The following example assumes Nginx and the container run on the same host, you already have a certificate, and `3443` is the management port you mapped. The proxy forwards requests to the host loopback address:
 
 ```nginx
 server {
@@ -213,18 +221,19 @@ server {
 
 ### Using Docker Compose (Manual Setup)
 
-This repository **does not include** a `compose.yaml`. If you prefer not to use the interactive deployment script, save the following example as `compose.yaml`, replace the public IPv4 address and `SECRET_KEY` with your own values (use a long random key), then run `docker compose up -d` from the directory containing the file:
+This repository **does not include** a `compose.yaml`. If you prefer not to use the interactive deployment script, save the following example as `compose.yaml` in the source checkout. Replace the public address and `SECRET_KEY` with your own values, then run `docker compose up -d --build`:
 
 ```yaml
 services:
   myztplanet:
-    image: xubiaolin/zerotier-planet:latest
+    build: .
+    image: zerotier-planet:local
     container_name: myztplanet
     restart: unless-stopped
     ports:
       - "9994:9994/tcp"
       - "9994:9994/udp"
-      - "3443:3443/tcp"
+      - "127.0.0.1:3443:3443/tcp"
       - "3000:3000/tcp"
     environment:
       IP_ADDR4: "203.0.113.10" # Replace with your server's public IPv4 address
@@ -242,9 +251,15 @@ services:
 
 > Keep the example's port mappings and container environment variables in sync. If you change a listening port, update its mapping and your firewall rules too. **Do not commit a Compose file containing your real public IP address, download key, or private configuration to a public repository.** When updating manually with Compose, stop the service and back up the full data directory yourself. The Update option in `./deploy.sh` handles automatic backups and rollback.
 
+### Publishing the official image
+
+The `Verify and publish ZeroTier image` workflow tests images on `amd64` and `arm64`. Maintainers can run it manually on `master` with `publish` selected to publish the tested images to `xubiaolin/zerotier-planet`. The publish job uses the Docker Hub credentials in the `dockerhub-production` environment. The image includes the source-available ZeroTier controller. Its license governs redistribution and commercial use. [Controller license](https://github.com/zerotier/ZeroTierOne/blob/1.16.2/nonfree/LICENSE.md)
+
+To use a verified published release in the Compose example, set `image: xubiaolin/zerotier-planet:<verified-version>` and remove `build`.
+
 ### Uninstall
 
-Run `./deploy.sh` from the project directory and select Uninstall from the menu. If you manage the container manually, you can run `docker rm -f myztplanet`; **this removes the container, not the host's `data/zerotier/` directory**. Inspect and back up the directory before deleting its contents.
+Run `./deploy.sh` from the project directory and select Uninstall. Confirming data deletion removes the deployment's configuration, node, management, and download data. Separate mounts and prior upgrade backups are retained. For a manually managed deployment, `docker rm -f myztplanet` removes the container on its own.
 
 ## FAQ
 
@@ -270,11 +285,11 @@ Reinstalls and in-place upgrades reuse the existing node address. Before moving 
 
 ### What if I forget the management password?
 
-Run `./deploy.sh` from the project directory and select Reset Password from the menu. The script restores the default password, `password`, and restarts the container; change it immediately after signing in. Do not delete `data/zerotier/` to reset a password—it also contains node and network data.
+Run `./deploy.sh` from the project directory and select Reset Password from the menu. The current image generates a new random administrator password, prints it in the terminal, and restarts the container. Use Update first if the container runs an older image. Password reset preserves the other administrator accounts, node identity, and network data.
 
 ### Are custom domains and ARM servers supported?
 
-You can access the management interface through a domain and reverse proxy. Planet generation uses `IP_ADDR4` / `IP_ADDR6` for node addresses; you cannot simply substitute a domain name for an IP address. The image build script includes `linux/arm64` and `linux/amd64`; confirm that the image you pull includes the architecture you need.
+You can access the management interface through a domain and reverse proxy. Planet generation uses `IP_ADDR4` / `IP_ADDR6` for node addresses; you cannot simply substitute a domain name for an IP address. The release workflow verifies `linux/arm64` and `linux/amd64`. Check that the tag you pull includes your architecture.
 
 ### Why is no virtual network interface created inside a PVE LXC container?
 

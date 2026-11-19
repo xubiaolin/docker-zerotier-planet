@@ -23,9 +23,18 @@ printf '%s\n' 'HTTP_PORT="20002"' 'ZT_ADDR=localhost:1' >/tmp/saved/ztncui/src/.
 DEPLOYMENT_DATA=/tmp/saved IP_ADDR4= FILE_SERVER_PORT=20003 node /app/settings.js >/tmp/settings
 printf '%s\n' 20001 20002 20003 '' '2001:db8::42' | cmp /tmp/settings -
 node /app/settings.js validate 20001 20002 20003 '' '2001:db8::42'
+node /app/settings.js validate 020001 020002 020003 '' '2001:db8::42'
+printf '%s\n' '020002' >/tmp/saved/config/ztncui.port
+DEPLOYMENT_DATA=/tmp/saved IP_ADDR4= FILE_SERVER_PORT=020003 node /app/settings.js >/tmp/settings
+printf '%s\n' 20001 20002 20003 '' '2001:db8::42' | cmp /tmp/settings -
+if node /app/settings.js validate 020002 20002 20003 '' '2001:db8::42' 2>/dev/null; then exit 1; fi
 if node /app/settings.js validate 20002 20002 20003 '' '2001:db8::42' 2>/dev/null; then exit 1; fi
 if node /app/settings.js validate 20001 20002 20003 '' '' 2>/dev/null; then exit 1; fi
 if node /app/settings.js validate 20001 20002 20003 'localhost' '' 2>/dev/null; then exit 1; fi
+for address in :: 0:0:0:0:0:0:0:0 '2001:db8::42%eth0'; do
+    if node /app/settings.js validate 20001 20002 20003 '' "$address" 2>/dev/null; then exit 1; fi
+done
+if node /app/settings.js validate 20001 20002 20003 0.0.0.0 '' 2>/dev/null; then exit 1; fi
 echo 65536 >/tmp/saved/config/ztncui.port
 if DEPLOYMENT_DATA=/tmp/saved node /app/settings.js 2>/dev/null; then exit 1; fi
 
@@ -41,10 +50,52 @@ JS
 if NODE_OPTIONS=--require=/tmp/stop.cjs node /app/initialize.js; then exit 1; else test "$?" -eq 77; fi
 test -s "$one/.planet-init.pending"
 sha256sum "$one/identity.secret" > /tmp/identity.sha256
+sha256sum /app/config/.initial-admin-password >/tmp/initial.sha256
 init
 sha256sum -c --status /tmp/identity.sha256
+sha256sum -c --status /tmp/initial.sha256
 test ! -e "$one/.planet-init.pending"
 test -s /app/dist/planet
+
+# Keep the first password private across interrupted initialization and issue it once.
+test "$(stat -c %a /app/config/.initial-admin-password)" = 600
+initial=$(node /app/admin-password.js initial)
+test "${#initial}" -eq 32
+test -z "$(node /app/admin-password.js initial)"
+test ! -e /app/config/.initial-admin-password
+passwd=/app/ztncui/src/etc/passwd
+node - "$passwd" <<'JS'
+const fs = require('node:fs');
+const passwd = process.argv[2];
+const users = JSON.parse(fs.readFileSync(passwd));
+users.second = { ...users.admin, name: 'second' };
+fs.writeFileSync(passwd, JSON.stringify(users));
+JS
+reset=$(node /app/admin-password.js reset)
+test "${#reset}" -eq 32
+test "$reset" != "$initial"
+printf '%s\n%s\n' "$initial" "$reset" | node -e '
+    const fs = require("node:fs");
+    const assert = require("node:assert/strict");
+    const argon2 = require("/opt/ztncui/src/node_modules/argon2");
+    const [initial, reset] = fs.readFileSync(0, "utf8").trimEnd().split("\n");
+    const users = JSON.parse(fs.readFileSync(process.argv[1]));
+    (async () => {
+        assert.equal(users.second.name, "second");
+        assert(await argon2.verify(users.second.hash, initial));
+        assert(await argon2.verify(users.admin.hash, reset));
+        assert(!(await argon2.verify(users.admin.hash, initial)));
+    })().catch(error => { throw error; });
+' "$passwd"
+
+# Update persisted port spellings with no changes to the client artifacts.
+sha256sum /app/dist/planet /app/dist/*.moon >/tmp/artifacts.sha256
+printf '09994\r\n' >/app/config/zerotier-one.port
+printf '003443\n' >/app/config/ztncui.port
+init
+test "$(cat /app/config/zerotier-one.port)" = 9994
+test "$(cat /app/config/ztncui.port)" = 3443
+sha256sum -c --status /tmp/artifacts.sha256
 hashes >/tmp/complete
 IP_ADDR4=192.0.2.20 ZT_PORT=19994 SECRET_KEY=changed init
 hashes | cmp /tmp/complete -

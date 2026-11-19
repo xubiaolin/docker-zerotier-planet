@@ -2,8 +2,7 @@
 # 用一次性 Docker 容器检验升级事务，包括进程被 SIGKILL 后的恢复。
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
-source "$repo/scripts/deployment.sh"
-source "$repo/scripts/upgrade.sh"
+source "$repo/deploy.sh"
 
 work=$(mktemp -d)
 CONTAINER_NAME="zt-upgrade-test-${work##*.}"
@@ -38,7 +37,7 @@ cp "$repo/patch/settings.js" "$work/build/"
 docker build -q -t "$tag" -f - "$work/build" <<BUILD >/dev/null
 FROM node:22-bookworm-slim
 COPY settings.js /app/settings.js
-LABEL test-instance=$CONTAINER_NAME org.zerotier-planet.retry-safe=1
+LABEL test-instance=$CONTAINER_NAME org.zerotier-planet.retry-safe=1 org.zerotier-planet.secure-admin=1
 BUILD
 DOCKER_IMAGE=$(docker image inspect --format '{{.Id}}' "$tag")
 case $layout_test in
@@ -59,8 +58,19 @@ mkdir -p "$ZEROTIER_PATH"/{config,dist,ztncui,one}
 old_inode=$(stat -c "%d:%i" "$ZEROTIER_PATH")
 fixture_mounts=(-v "$CONFIG_PATH:/app/config" -v "$DIST_PATH:/app/dist"
         -v "$ZTNCUI_PATH:/app/ztncui" -v "$ZEROTIER_PATH/one:/var/lib/zerotier-one")
+read -r zt_host api_host files_host < <(python3 - <<'PY'
+import socket
+sockets = [socket.socket() for _ in range(3)]
+for listener in sockets:
+    listener.bind(('127.0.0.1', 0))
+print(*(listener.getsockname()[1] for listener in sockets))
+PY
+)
 old=$(docker run -d --name "$CONTAINER_NAME" --restart always --label "test-instance=$CONTAINER_NAME" \
+    -p "$zt_host:9994/tcp" -p "$zt_host:9994/udp" \
+    -p "127.0.0.1:$api_host:3443/tcp" -p "127.0.0.1:$files_host:3000/tcp" \
     "${fixture_mounts[@]}" --entrypoint sh "$base" -c 'trap "exit 0" TERM; while :; do sleep 1; done')
+original_bindings=$(port_bindings "$old" NetworkSettings.Ports)
 docker exec "$old" sh -ec '
     echo previous > /var/lib/zerotier-one/.identity
     chmod 0600 /var/lib/zerotier-one/.identity
@@ -72,9 +82,11 @@ docker exec "$old" sh -ec '
 # 即使本机 sudo 可用，测试也覆盖只持有 docker 组权限的普通用户。
 sudo() { return 1; }
 run_container() {
+    local image=$1
+    shift
     [[ $(docker inspect --format '{{.State.Running}} {{.HostConfig.RestartPolicy.Name}}' "$old") == "false no" ]] || return 1
     docker run -d --name "$CONTAINER_NAME" --label "org.zerotier-planet.upgrade=$UPGRADE_TOKEN" \
-        --label "test-instance=$CONTAINER_NAME" "${fixture_mounts[@]}" --entrypoint sleep "$1" 3600 >/dev/null
+        --label "test-instance=$CONTAINER_NAME" "${fixture_mounts[@]}" "$@" --entrypoint sleep "$image" 3600 >/dev/null
     docker exec "$CONTAINER_NAME" sh -ec '
         test "$(cat /var/lib/zerotier-one/.identity)" = previous
         echo candidate > /var/lib/zerotier-one/.identity
@@ -117,6 +129,13 @@ assert_original
 outcome=unhealthy
 if upgrade <<< y; then exit 1; fi
 assert_original
+# 原容器仍无法就绪时，回滚完成后应允许菜单继续执行。
+old_unhealthy=true
+if upgrade <<< y; then exit 1; fi
+assert_original
+[[ -e $work/old-readiness-checked ]]
+rm "$work/old-readiness-checked"
+unset old_unhealthy
 outcome=crash
 if { upgrade <<< y; } 2>"$work/intentional-crash.log"; then exit 1; fi
 [[ -d $ZEROTIER_PATH.upgrade/data ]]
@@ -173,6 +192,8 @@ if (
 ); then exit 1; fi
 assert_original
 upgrade <<< y
+[[ $(port_bindings "$CONTAINER_NAME" NetworkSettings.Ports) == "$original_bindings" ]]
+[[ $(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$CONTAINER_NAME") == always ]]
 docker exec "$CONTAINER_NAME" sh -ec '
     test "$(cat /var/lib/zerotier-one/.identity)" = candidate
     test -e /app/dist/candidate-only'
@@ -183,4 +204,15 @@ docker run --rm --network none -v "${archives[0]}data:/saved:ro" --entrypoint sh
     test "$(stat -c "%a %u" /saved/one/.identity)" = "600 0"
     test ! -e /saved/dist/candidate-only'
 upgrade </dev/null
-echo "升级、预检、失败回滚、中断恢复和半成品修复回滚均已验证。"
+uninstall <<< y
+case $layout_test in
+    root-link|mounts)
+        [[ $(stat -c "%d:%i" "$ZEROTIER_PATH") == "$old_inode" ]]
+        for dir in config dist one ztncui; do
+            [[ -d $ZEROTIER_PATH/$dir && -z $(ls -A -- "$ZEROTIER_PATH/$dir") ]]
+        done
+        ;;
+    *) [[ ! -e $ZEROTIER_PATH ]] ;;
+esac
+[[ -d ${archives[0]} ]]
+echo "升级、预检、失败回滚、中断恢复、半成品修复回滚和卸载均已验证。"

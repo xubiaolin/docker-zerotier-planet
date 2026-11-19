@@ -10,24 +10,36 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish the verified image to Docker Hub from master
+        description: Publish to Docker Hub (I confirm I have the upstream redistribution rights)
         type: boolean
         default: false
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
-  group: image-build-${{ github.ref }}
+  group: image-build-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   image:
-    name: Build and test on the shared Linux runner
-    runs-on: [self-hosted, Linux, X64, docker-zerotier-planet, isolated-docker]
+    name: Build and test on ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     env:
-      CANDIDATE: zerotier-planet-ci:${{ github.run_id }}-${{ github.run_attempt }}
+      ARCH: ${{ matrix.arch }}
+      CANDIDATE: zerotier-planet-ci:${{ matrix.arch }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -37,8 +49,9 @@ jobs:
         run: |
           docker version
           docker buildx version
+          test -c /dev/net/tun || sudo modprobe tun
           test -c /dev/net/tun
-          for script in build.sh deploy.sh patch/*.sh scripts/*.sh tests/*.sh; do
+          for script in deploy.sh patch/*.sh scripts/*.sh tests/*.sh; do
             bash -n "$script"
           done
           sh -n patch/healthcheck.sh
@@ -48,7 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "$GITHUB_REF" == refs/heads/master ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
             release=$(curl --fail --silent --show-error --retry 3 \
               -H "Authorization: Bearer $GH_TOKEN" \
               https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest)
@@ -63,7 +76,16 @@ jobs:
       - name: Build candidate image
         env:
           VERSION: ${{ steps.version.outputs.tag }}
-        run: docker buildx build --load --platform linux/amd64 --build-arg "TAG=$VERSION" --tag "$CANDIDATE" .
+        run: docker buildx build --load --platform "linux/$ARCH" --build-arg "TAG=$VERSION" --tag "$CANDIDATE" .
+
+      - name: Check license files in the candidate
+        run: |
+          docker run --rm --network none --entrypoint sh "$CANDIDATE" -ec '
+            cd /usr/share/doc
+            for path in zerotier/LICENSE.txt zerotier/LICENSE-MPL.txt zerotier/nonfree/LICENSE.md ztncui/LICENSE; do
+              test -s "$path"
+            done
+          '
 
       - name: Test container initialization and signing
         run: tests/container-init.sh "$CANDIDATE"
@@ -79,19 +101,75 @@ jobs:
       - name: Test legacy client reconnection after upgrade and rollback
         run: tests/deployment-e2e.sh "$CANDIDATE"
 
-      - name: Publish tested image to Docker Hub
-        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'schedule' || inputs.publish)
+      - name: Save tested image
+        if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          mkdir tested-image
+          cd tested-image
+          printf '%s\n' "$VERSION" > version
+          docker save "$CANDIDATE" | gzip -1 > image.tar.gz
+          sha256sum image.tar.gz > image.tar.gz.sha256
+
+      - name: Upload tested image
+        if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tested-image-${{ matrix.arch }}
+          path: tested-image/
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    name: Publish tested images to Docker Hub
+    needs: image
+    if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: dockerhub-production
+    env:
+      REPOSITORY: xubiaolin/zerotier-planet
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: tested-image-*
+
+      - name: Verify downloaded image archives and platforms
+        run: |
+          version=$(cat tested-image-amd64/version)
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          for arch in amd64 arm64; do
+            directory=tested-image-$arch
+            [[ $(cat "$directory/version") == "$version" ]]
+            (
+              cd "$directory"
+              sha256sum --check image.tar.gz.sha256
+              docker load --input image.tar.gz
+            )
+            platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "zerotier-planet-ci:$arch")
+            [[ $platform == "linux/$arch" ]]
+          done
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Publish both platforms and multi-platform tags
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-          VERSION: ${{ steps.version.outputs.tag }}
         run: |
           export DOCKER_CONFIG
           DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/docker-login.XXXXXXXX")
           trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
           printf '%s' "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
-          repository="$DOCKERHUB_USERNAME/zerotier-planet-test"
-          for tag in "$VERSION" latest; do
-            docker tag "$CANDIDATE" "$repository:$tag"
-            docker push "$repository:$tag"
+          manifests=()
+          for arch in amd64 arm64; do
+            tag="$REPOSITORY:$VERSION-$arch"
+            docker tag "zerotier-planet-ci:$arch" "$tag"
+            output=$(docker push "$tag")
+            printf '%s\n' "$output"
+            digest=$(sed -nE 's/^[^ ]+: digest: (sha256:[0-9a-f]{64}) size: [0-9]+$/\1/p' <<< "$output")
+            [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]
+            manifests+=("$REPOSITORY@$digest")
           done
+          docker buildx imagetools create --tag "$REPOSITORY:$VERSION" --tag "$REPOSITORY:latest" "${manifests[@]}"
