@@ -25,6 +25,7 @@ uninstall() {
     image=$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_NAME") || return 1
     read -r -p "是否删除当前部署目录 $ZEROTIER_PATH 中的数据？(y/n) " delete_data || return 1
     if [[ $delete_data == [Yy] ]]; then
+        verify_mounts "$CONTAINER_NAME" data || return 1
         layout=$(upgrade_layout) || return 1
         fs_image=$(docker inspect --format '{{.Image}}' "$CONTAINER_NAME") || return 1
     fi

@@ -88,6 +88,20 @@ printf '%s\n%s\n' "$initial" "$reset" | node -e '
     })().catch(error => { throw error; });
 ' "$passwd"
 
+node - "$passwd" <<'JS'
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { atomicWrite } = require('/app/settings');
+const target = process.argv[2];
+const before = fs.readFileSync(target);
+const files = fs.readdirSync(path.dirname(target)).sort();
+fs.renameSync = () => { throw new Error('injected credential write failure'); };
+assert.throws(() => atomicWrite(target, '{}'), /injected credential write failure/);
+assert.deepEqual(fs.readFileSync(target), before);
+assert.deepEqual(fs.readdirSync(path.dirname(target)).sort(), files);
+JS
+
 # Update persisted port spellings with no changes to the client artifacts.
 sha256sum /app/dist/planet /app/dist/*.moon >/tmp/artifacts.sha256
 printf '09994\r\n' >/app/config/zerotier-one.port
@@ -98,6 +112,28 @@ test "$(cat /app/config/ztncui.port)" = 3443
 sha256sum -c --status /tmp/artifacts.sha256
 hashes >/tmp/complete
 IP_ADDR4=192.0.2.20 ZT_PORT=19994 SECRET_KEY=changed init
+hashes | cmp /tmp/complete -
+
+# Restore either damaged Planet from the valid copy without regenerating it.
+for artifact in "$one/planet" /app/dist/planet; do
+    printf 'damaged Planet\n' > "$artifact"
+    init
+    hashes | cmp /tmp/complete -
+done
+
+# External endpoints can differ from listen ports and must match signed files.
+printf '192.0.2.20\n' >/app/config/ip_addr4
+if init >/tmp/result 2>&1; then exit 1; fi
+grep -q '公网地址' /tmp/result
+printf '192.0.2.10\n' >/app/config/ip_addr4
+if ZT_ADVERTISED_PORT=19994 init >/tmp/result 2>&1; then exit 1; fi
+grep -q '公网 ZeroTier 端口' /tmp/result
+printf '19995\n' >/app/config/zerotier-one.port
+ZT_ADVERTISED_PORT=9994 init
+test "$(cat /app/config/zerotier-advertised.port)" = 9994
+sha256sum -c --status /tmp/artifacts.sha256
+printf '9994\n' >/app/config/zerotier-one.port
+init
 hashes | cmp /tmp/complete -
 
 # Existing download links may also address ordinary files under a subdirectory.

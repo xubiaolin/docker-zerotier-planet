@@ -76,16 +76,22 @@ jobs:
       - name: Build candidate image
         env:
           VERSION: ${{ steps.version.outputs.tag }}
-        run: docker buildx build --load --platform "linux/$ARCH" --build-arg "TAG=$VERSION" --tag "$CANDIDATE" .
+        run: |
+          docker buildx build --load --platform "linux/$ARCH" --build-arg "TAG=$VERSION" \
+            --build-arg "PROJECT_REVISION=$GITHUB_SHA" --tag "$CANDIDATE" .
 
       - name: Check license files in the candidate
         run: |
           docker run --rm --network none --entrypoint sh "$CANDIDATE" -ec '
             cd /usr/share/doc
-            for path in zerotier/LICENSE.txt zerotier/LICENSE-MPL.txt zerotier/nonfree/LICENSE.md ztncui/LICENSE; do
+            for path in zerotier/LICENSE.txt zerotier/LICENSE-MPL.txt zerotier/nonfree/LICENSE.md \
+                        zerotier/build/COPYING zerotier/build/mkworld_custom.cpp zerotier/build/mkworld.mk \
+                        zerotier/build/Dockerfile ztncui/LICENSE; do
               test -s "$path"
             done
-          '
+            grep -Ex "https://github.com/zerotier/ZeroTierOne/tree/[0-9a-f]{40}" zerotier/SOURCE.txt
+            grep -Fx "https://github.com/xubiaolin/docker-zerotier-planet/tree/$1" zerotier/SOURCE.txt
+          ' sh "$GITHUB_SHA"
 
       - name: Test container initialization and signing
         run: tests/container-init.sh "$CANDIDATE"
@@ -102,18 +108,28 @@ jobs:
         run: tests/deployment-e2e.sh "$CANDIDATE"
 
       - name: Save tested image
-        if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+        if: github.event_name == 'workflow_dispatch'
         env:
           VERSION: ${{ steps.version.outputs.tag }}
+          PUBLISH: ${{ github.ref == 'refs/heads/master' && inputs.publish }}
         run: |
           mkdir tested-image
           cd tested-image
           printf '%s\n' "$VERSION" > version
           docker save "$CANDIDATE" | gzip -1 > image.tar.gz
+          if [[ $PUBLISH != true ]]; then
+            # Exercise the real image locally and transfer an unrestricted fixture.
+            docker image rm "$CANDIDATE"
+            docker load --input image.tar.gz
+            [[ $(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$CANDIDATE") == "linux/$ARCH" ]]
+            docker pull --platform "linux/$ARCH" alpine:3.22
+            docker tag alpine:3.22 "$CANDIDATE"
+            docker save "$CANDIDATE" | gzip -1 > image.tar.gz
+          fi
           sha256sum image.tar.gz > image.tar.gz.sha256
 
       - name: Upload tested image
-        if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tested-image-${{ matrix.arch }}
@@ -122,21 +138,20 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
-  publish:
-    name: Publish tested images to Docker Hub
+  verify-archives:
+    name: Verify tested image archives
     needs: image
-    if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+    if: github.event_name == 'workflow_dispatch' && !(github.ref == 'refs/heads/master' && inputs.publish)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    environment: dockerhub-production
-    env:
-      REPOSITORY: xubiaolin/zerotier-planet
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - &download-archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: tested-image-*
 
-      - name: Verify downloaded image archives and platforms
+      - &load-archives
+        name: Verify downloaded image archives and platforms
         run: |
           version=$(cat tested-image-amd64/version)
           [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
@@ -153,11 +168,37 @@ jobs:
           done
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
+  publish:
+    name: Publish tested images to Docker Hub
+    needs: image
+    if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: dockerhub-production
+    env:
+      REPOSITORY: xubiaolin/zerotier-planet
+    steps:
+      - *download-archives
+      - *load-archives
+
       - name: Publish both platforms and multi-platform tags
         env:
+          GH_TOKEN: ${{ github.token }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: |
+          require_current_master() {
+            local master_sha
+            master_sha=$(curl --fail --silent --show-error --retry 3 \
+              -H "Authorization: Bearer $GH_TOKEN" -H 'Cache-Control: no-cache' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/master" | jq -er '.object.sha')
+            if [[ $master_sha != "$GITHUB_SHA" ]]; then
+              echo "This run built $GITHUB_SHA, but master now points to $master_sha. Run the workflow again on master." >&2
+              return 1
+            fi
+          }
+
+          require_current_master
           export DOCKER_CONFIG
           DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/docker-login.XXXXXXXX")
           trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
@@ -172,4 +213,7 @@ jobs:
             [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]
             manifests+=("$REPOSITORY@$digest")
           done
-          docker buildx imagetools create --tag "$REPOSITORY:$VERSION" --tag "$REPOSITORY:latest" "${manifests[@]}"
+          require_current_master
+          docker buildx imagetools create --tag "$REPOSITORY:$VERSION" "${manifests[@]}"
+          require_current_master
+          docker buildx imagetools create --tag "$REPOSITORY:latest" "${manifests[@]}"
