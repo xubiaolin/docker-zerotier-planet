@@ -19,67 +19,50 @@ check_proxy() {
     fi
     echo "部署镜像：$DOCKER_IMAGE"
 }
-# 升级CentOS内核
-update_centos_kernel() {
-    echo "请注意备份数据，升级内核有风险"
-    read -p "是否继续升级内核?(y/n) " continue_update
-    if [[ "$continue_update" =~ ^[Yy]$ ]]; then
-        echo "升级时间较长，请耐心等待！开始升级内核..."
-        yum update -y
-        rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
-        yum install -y https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
-        yum --disablerepo="*" --enablerepo="elrepo-kernel" install -y kernel-lt-devel kernel-lt
-        sudo awk -F\' '$1=="menuentry " {print i++ " : " $2}' /etc/grub2.cfg
-        grub2-set-default 0
-        grub2-mkconfig -o /boot/grub2/grub.cfg
-        read -p "内核升级完成，请重启系统，是否立刻重启?(y/n) " reboot
-        if [[ "$reboot" =~ ^[Yy]$ ]]; then
-            reboot now
-        else
-            echo "已取消重启"
-            exit 0
-        fi
-    else
-        echo "已取消升级内核"
-        exit 0
-    fi
-}
-
 uninstall() {
-    echo "开始卸载..."
-
-    local image
+    local image fs_image delete_data layout
     verify_mounts "$CONTAINER_NAME" || return 1
     image=$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_NAME") || return 1
-    docker stop "$CONTAINER_NAME" && docker rm "$CONTAINER_NAME" || return 1
-    docker rmi "$image" || echo "镜像仍保留在本机。"
-
-    read -p "是否删除数据?(y/n) " delete_data
-    if [[ "$delete_data" =~ ^[Yy]$ ]]; then
-        rm -rf -- "${ZEROTIER_PATH:?}" || return 1
+    read -r -p "是否删除当前部署目录 $ZEROTIER_PATH 中的数据？(y/n) " delete_data || return 1
+    if [[ $delete_data == [Yy] ]]; then
+        layout=$(upgrade_layout) || return 1
+        fs_image=$(docker inspect --format '{{.Image}}' "$CONTAINER_NAME") || return 1
     fi
-
+    docker stop "$CONTAINER_NAME" || return 1
+    if [[ $delete_data == [Yy] ]]; then
+        if [[ $(upgrade_layout) != "$layout" ]]; then
+            echo "数据挂载已改变，请恢复原挂载后重试。" >&2
+            return 1
+        fi
+        if [[ $layout == mounted$'\n'* ]]; then
+            docker run --rm --network none --user 0 -v "$ZEROTIER_PATH:/live" --entrypoint sh "$fs_image" -ec '
+                ids=$(stat -c "%d:%i" /live /live/config /live/dist /live/one /live/ztncui)
+                test "$ids" = "$1"
+                for dir in config dist one ztncui; do
+                    find "/live/$dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+                done
+                rm -f -- /live/.install-settings' delete "${layout#*$'\n'}" || return 1
+        else
+            upgrade_fs rm -rf -- "${ZEROTIER_PATH:?}" || return 1
+        fi
+    fi
+    docker rm "$CONTAINER_NAME" || return 1
+    docker rmi "$image" || echo "镜像仍保留在本机。"
     echo "卸载完成"
 }
 
 resetpwd() {
+    local secure_admin password
     verify_mounts "$CONTAINER_NAME" || return 1
-    docker exec "$CONTAINER_NAME" sh -c 'cp /app/ztncui/src/etc/default.passwd /app/ztncui/src/etc/passwd'
-    if [ $? -ne 0 ]; then
-        echo "重置密码失败"
-        exit 1
+    secure_admin=$(docker inspect --format '{{index .Config.Labels "org.zerotier-planet.secure-admin"}}' "$CONTAINER_NAME") || return 1
+    if [[ $secure_admin != 1 ]]; then
+        echo "请先升级容器，再使用随机密码重置。" >&2
+        return 1
     fi
-
-    docker restart "$CONTAINER_NAME"
-    if [ $? -ne 0 ]; then
-        echo "重启服务失败"
-        exit 1
-    fi
-
-    echo "--------------------------------"
-    echo "重置密码成功"
-    echo "当前用户名 admin, 密码为 password"
-    echo "--------------------------------"
+    password=$(docker exec "$CONTAINER_NAME" node /app/admin-password.js reset) || return 1
+    [[ -n $password ]] || return 1
+    printf '管理员 admin 的新密码：%s\n' "$password"
+    docker restart "$CONTAINER_NAME" && wait_ready "$CONTAINER_NAME"
 }
 
 menu() {
@@ -89,7 +72,6 @@ menu() {
     echo "3. 更新"
     echo "4. 查看信息"
     echo "5. 重置密码"
-    echo "6. CentOS内核升级"
     echo "7. 检查是否设置代理"
     echo "0. 退出"
     read -r -p "请输入数字：" num || return 1
@@ -108,10 +90,9 @@ menu() {
     3) upgrade ;;
     4) info ;;
     5) resetpwd ;;
-    6) update_centos_kernel ;;
     7) check_proxy ;;
     0) exit ;;
-    *) echo "请输入正确数字 [0-7]" ;;
+    *) echo "请输入 0、1、2、3、4、5 或 7。" ;;
     esac
 }
 

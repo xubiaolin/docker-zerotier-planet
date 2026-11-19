@@ -1,6 +1,8 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
+const { randomBytes } = require('node:crypto');
 const { isIP } = require('node:net');
 const { parseEnv } = require('node:util');
 
@@ -33,22 +35,51 @@ function parseJson(data, file) {
     }
 }
 
+function syncDirectory(directory) {
+    const fd = fs.openSync(directory, 'r');
+    try {
+        fs.fsyncSync(fd);
+    } finally {
+        fs.closeSync(fd);
+    }
+}
+
+function atomicWrite(file, data) {
+    const directory = path.dirname(file);
+    fs.mkdirSync(directory, { recursive: true });
+    const tmp = path.join(directory, '.planet-write-' + randomBytes(12).toString('hex'));
+    fs.writeFileSync(tmp, data, { mode: 0o600, flag: 'wx', flush: true });
+    fs.renameSync(tmp, file);
+    syncDirectory(directory);
+}
+
 function legacyEnv() {
     return parseEnv(value(ui + '/.env') || '');
 }
 
-function validPort(port) {
-    return /^[1-9]\d{0,4}$/.test(port) && Number(port) <= 65535;
+function canonicalPort(port) {
+    const number = Number(port);
+    if (!/^\d+$/.test(port) || number < 1 || number > 65535) {
+        throw new Error('端口必须是 1 至 65535 之间的不同整数');
+    }
+    return String(number);
+}
+
+function validAddress(address, version) {
+    if (isIP(address) !== version) return false;
+    if (version === 4) return address !== '0.0.0.0';
+    return !address.includes('%') && new URL(`http://[${address}]`).hostname !== '[::]';
 }
 
 function validate(settings, allowMissing = false) {
     const [zt, api, files, ipv4, ipv6] = settings;
-    const ports = [zt, api, files].filter(Boolean);
-    if ((!allowMissing && ports.length !== 3) ||
-        !ports.every(validPort) || new Set(ports).size !== ports.length) {
+    const ports = [zt, api, files].filter(Boolean).map(canonicalPort);
+    if ((!allowMissing && ports.length !== 3) || new Set(ports).size !== ports.length) {
         throw new Error('端口必须是 1 至 65535 之间的不同整数');
     }
-    if ((ipv4 && isIP(ipv4) !== 4) || (ipv6 && isIP(ipv6) !== 6)) throw new Error('IP 地址格式错误');
+    if ((ipv4 && !validAddress(ipv4, 4)) || (ipv6 && !validAddress(ipv6, 6))) {
+        throw new Error('IP 地址格式错误或无法通告');
+    }
     if (!allowMissing && !ipv4 && !ipv6) throw new Error('请配置 IP_ADDR4 或 IP_ADDR6');
 }
 
@@ -62,10 +93,12 @@ function resolveSettings(moon = readMoon()) {
     if (!Array.isArray(endpoints)) throw new Error(`无效的 stableEndpoints：${moonPath}`);
     const stable = endpoints.map(endpoint => {
         const parts = typeof endpoint === 'string' ? endpoint.split('/') : [];
-        if (parts.length !== 2 || !isIP(parts[0]) || !validPort(parts[1])) {
+        const [address, port] = parts;
+        const version = isIP(address);
+        if (parts.length !== 2 || !version || !validAddress(address, version)) {
             throw new Error(`无效的 stableEndpoints：${moonPath}`);
         }
-        return parts;
+        return [address, canonicalPort(port)];
     });
     const old = legacyEnv();
     const get = name => value(config + '/' + name);
@@ -74,7 +107,7 @@ function resolveSettings(moon = readMoon()) {
             process.env.ZT_PORT || value(one + '/zerotier-one.port') || '',
         get('ztncui.port') || old.HTTP_PORT || process.env.API_PORT || '',
         get('file_server.port') || process.env.FILE_SERVER_PORT || '',
-    ];
+    ].map(port => port ? canonicalPort(port) : port);
     const addresses = [4, 6].map(version => {
         const saved = get('ip_addr' + version);
         const endpoint = stable.find(([ip]) => isIP(ip) === version);
@@ -97,4 +130,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { read, value, parseJson, legacyEnv, resolveSettings, validate };
+module.exports = { read, value, parseJson, syncDirectory, atomicWrite, legacyEnv, resolveSettings, validate };

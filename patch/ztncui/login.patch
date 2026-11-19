@@ -1,0 +1,85 @@
+--- a/src/controllers/auth.js
++++ b/src/controllers/auth.js
+@@ -7,35 +7,13 @@
+ const argon2 = require('argon2');
+ const usersController = require('../controllers/usersController');
+ 
+-const hash_check = async function(user, password) {
+-  let verified = false;
+-  try {
+-    var users = await usersController.get_users();
+-  } catch (err) {
+-    throw err;
++exports.authenticate = async function(name, pass, callback) {
++  const users = await usersController.get_users();
++  const user = Object.hasOwn(users, name) ? users[name] : null;
++  if (!user || !(await argon2.verify(user.hash, pass))) {
++    return callback(new Error('invalid credentials'));
+   }
+-  try {
+-    verified = await argon2.verify(users[user].hash, password);
+-  } catch (err) {
+-    throw err;
+-  }
+-  return verified;
+-}
+-
+-exports.authenticate = async function(name, pass, callback) {
+-  try {
+-    var users = await usersController.get_users();
+-  } catch (err) {
+-    throw err;
+-  }
+-  let user = users[name];
+-  if (!user) return callback(new Error('cannot find user'));
+-  let verified = await hash_check(name, pass);
+-  if (verified) {
+-    return callback(null, user);
+-  } else {
+-    return callback(new Error('invalid password'));
+-  }
++  return callback(null, user);
+ }
+ 
+ exports.restrict = function(req, res, next) {
+--- a/src/routes/index.js
++++ b/src/routes/index.js
+@@ -42,10 +42,19 @@
+   res.render('login', { title: 'Login', message: message });
+ });
+ 
+-router.post('/login', async function(req, res) {
+-  await authenticate(req.body.username, req.body.password, function(err, user) {
+-    if (user) {
+-      req.session.regenerate(function() {
++router.post('/login', async function(req, res, next) {
++  const {username, password} = req.body || {};
++  if (typeof username !== 'string' || typeof password !== 'string') {
++    return res.status(400).render('login', { title: 'Login', message: 'Invalid login details.' });
++  }
++  try {
++    await authenticate(username, password, function(err, user) {
++      if (!user) {
++        req.session.error = 'Authentication failed, please check your username and password.';
++        return res.redirect('/login');
++      }
++      req.session.regenerate(function(error) {
++        if (error) return next(error);
+         req.session.user = user;
+         req.session.success = 'Authenticated as ' + user.name;
+         if (user.pass_set) {
+@@ -54,10 +63,9 @@
+           res.redirect('/users/' + user.name + '/password');
+         }
+       });
+-    } else {
+-      req.session.error = 'Authentication failed, please check your username and password.'
+-      res.redirect('/login');
+-    }
+-  });
++    });
++  } catch (error) {
++    next(error);
++  }
+ });
+ module.exports = router;

@@ -5,7 +5,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomBytes, createHash } = require('node:crypto');
 const { isIP } = require('node:net');
-const { read, value, parseJson, legacyEnv, resolveSettings, validate } = require('./settings');
+const { read, value, parseJson, syncDirectory, atomicWrite, legacyEnv, resolveSettings, validate } = require('./settings');
+const { newAdmin, passwd, initialPassword } = require('./admin-password');
 const { execFileSync } = require('node:child_process');
 
 const one = '/var/lib/zerotier-one';
@@ -17,7 +18,6 @@ const idtool = '/usr/sbin/zerotier-idtool';
 const pending = path.join(one, '.planet-init.pending');
 const complete = path.join(config, '.planet-initialized');
 const moonPath = path.join(one, 'moon.json');
-const passwd = path.join(ui, 'etc/passwd');
 const keyPath = path.join(config, 'file_server.key');
 const published = path.join(dist, 'planet');
 const controller = path.join(one, 'controller.d/network');
@@ -53,25 +53,6 @@ function run(program, args, cwd) {
     }
 }
 
-function syncDirectory(directory) {
-    const fd = fs.openSync(directory, 'r');
-    try {
-        fs.fsyncSync(fd);
-    } finally {
-        fs.closeSync(fd);
-    }
-}
-
-// Each target is on its own Docker mount. Persist the complete, validated plan
-// before the first rename so a killed process can replay the same credentials.
-function atomicWrite(file, data) {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = path.join(path.dirname(file), '.planet-write-' + randomBytes(12).toString('hex'));
-    fs.writeFileSync(tmp, data, { mode: 0o600, flag: 'wx', flush: true });
-    fs.renameSync(tmp, file);
-    syncDirectory(path.dirname(file));
-}
-
 function allowedTarget(file) {
     const names = {
         [one]: ['identity.public', 'identity.secret', 'authtoken.secret', 'moon.json', 'planet', 'current.c25519', 'previous.c25519'],
@@ -82,7 +63,7 @@ function allowedTarget(file) {
     };
     const dir = path.dirname(file);
     const name = path.basename(file);
-    return names[dir]?.includes(name) ||
+    return file === initialPassword || names[dir]?.includes(name) ||
         ([dist, path.join(one, 'moons.d')].includes(dir) && /^[0-9a-f]{16}\.moon$/.test(name));
 }
 
@@ -103,7 +84,7 @@ function publish(records) {
     syncDirectory(one);
 }
 
-function prepareCredentials() {
+async function prepareCredentials() {
     const existingUi = value(passwd);
     const downloadKey = value(keyPath);
     const isComplete = fs.existsSync(complete);
@@ -128,9 +109,11 @@ function prepareCredentials() {
 
     add(tokenFile, token);
     add(keyPath, downloadKey || process.env.SECRET_KEY || randomBytes(24).toString('hex'));
-    const defaultPasswd = fs.readFileSync('/opt/ztncui/etc.defaults/default.passwd');
-    add(path.join(ui, 'etc/default.passwd'), defaultPasswd);
-    add(passwd, defaultPasswd);
+    if (!existingUi) {
+        const { admin, password } = await newAdmin();
+        planWrite(passwd, JSON.stringify({ admin }));
+        planWrite(initialPassword, password + '\n');
+    }
     return { served, hasIdentityEvidence, token };
 }
 
@@ -174,8 +157,14 @@ function prepareEndpoints(work, moon, token) {
         moon.roots[0].stableEndpoints = addresses.filter(Boolean).map(ip => ip + '/' + ports[0]);
     }
     validate([...ports, ...addresses]);
-    for (const [name, v] of Object.entries({
+    for (const [name, port] of Object.entries({
         'zerotier-one.port': ports[0], 'ztncui.port': ports[1], 'file_server.port': ports[2],
+    })) {
+        const file = path.join(config, name);
+        const canonical = Buffer.from(port + '\n');
+        if (!read(file)?.equals(canonical)) planWrite(file, canonical);
+    }
+    for (const [name, v] of Object.entries({
         ip_addr4: addresses[0], ip_addr6: addresses[1],
     })) add(path.join(config, name), v + '\n');
     add(envFile, `HTTP_PORT=${ports[1]}\nHTTP_ALL_INTERFACES=true\nNODE_ENV=production\nZT_ADDR=127.0.0.1:${ports[0]}\nZT_TOKEN=${token}\n`);
@@ -201,10 +190,10 @@ function prepareKeys(work, execWorld, previous, current, planetCopy, served) {
     for (const name of keyFiles) add(path.join(one, name), fs.readFileSync(path.join(work, name)));
 }
 
-function prepare(work) {
+async function prepare(work) {
     const execId = (...args) => run(idtool, args, work);
     const execWorld = (...args) => run(builder, args, work);
-    const { served, hasIdentityEvidence, token } = prepareCredentials();
+    const { served, hasIdentityEvidence, token } = await prepareCredentials();
     const identity = prepareIdentity(work, execId, hasIdentityEvidence);
     const nodeId = identity.split(':')[0];
     requireState(!value(complete) || value(complete) === nodeId, '配置目录中的节点标识与私钥不匹配');
@@ -277,13 +266,14 @@ function prepare(work) {
     add(complete, nodeId + '\n');
 }
 
-function initialize() {
+async function initialize() {
     if (fs.existsSync(pending)) publish(parseJson(read(pending), pending));
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'planet-init-'));
     try {
-        prepare(work);
+        await prepare(work);
         if (plan.size) {
             const records = Array.from(plan, ([file, change]) => [file, ...change]);
+            // Persist the complete plan before writing to separate Docker mounts.
             atomicWrite(pending, JSON.stringify(records));
             publish(records);
         }
@@ -293,9 +283,7 @@ function initialize() {
 }
 
 process.umask(0o077);
-try {
-    initialize();
-} catch (error) {
+initialize().catch(error => {
     console.error('初始化停止。' + error.message + '。请检查挂载目录，必要时从同一实例备份还原后重试。');
     process.exitCode = 1;
-}
+});

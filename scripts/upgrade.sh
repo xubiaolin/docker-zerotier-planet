@@ -157,19 +157,23 @@ recover_upgrade() (
         docker start "$old" >/dev/null || return 1
     fi
     docker update --restart="$policy" "$old" >/dev/null || return 1
-    if [[ $was_running == true && ! -f $journal/repair ]]; then
-        wait_ready "$CONTAINER_NAME" || return 1
-    fi
+    local check_health=false
+    if [[ $was_running == true && ! -f $journal/repair ]]; then check_health=true; fi
     discarded="${ZEROTIER_PATH}.rollback.$token"
     upgrade_move "$journal" "$discarded" || return 1
     sync -f "${ZEROTIER_PATH%/*}" || return 1
     upgrade_fs rm -rf "$discarded" || return 1
     echo "已恢复升级前的容器和数据。" >&2
+    if [[ $check_health == true ]] && ! wait_ready "$CONTAINER_NAME"; then
+        echo "旧容器已恢复，但服务仍未就绪。" >&2
+    fi
 )
 
 upgrade() (
     local journal="${ZEROTIER_PATH}.upgrade" old fs_image policy retries running new_image
     local info confirm staging token UPGRADE_TOKEN layout mode=${1:-upgrade}
+    local network bindings target host port exact_bindings=false
+    local -a launch_args=()
     recover_upgrade || return 1
     info=$(docker container inspect --format '{{.Id}} {{.Image}} {{.HostConfig.RestartPolicy.Name}} {{.HostConfig.RestartPolicy.MaximumRetryCount}} {{.State.Running}}' "$CONTAINER_NAME") || return 1
     read -r old fs_image policy retries running <<< "$info"
@@ -183,11 +187,34 @@ upgrade() (
         return 0
     fi
     verify_mounts "$CONTAINER_NAME" || return 1
-    if [[ $mode == repair ]]; then
+    if [[ $mode == repair || $running != true ]]; then
         load_repair_config "$new_image" || { echo "无法读取修复所需的部署参数。" >&2; return 1; }
     else
         load_config || { echo "无法读取现有部署的端口和地址。" >&2; return 1; }
     fi
+    network=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$old") || return 1
+    if [[ -z $network || $network == *$'\n'* ]] ||
+        [[ $(docker network inspect --format '{{.Driver}}' "$network") != bridge ]]; then
+        echo "原地升级需要单个 Docker bridge 网络以保留发布的端口。" >&2
+        return 1
+    fi
+    if [[ $running == true ]] && bindings=$(port_bindings "$old" NetworkSettings.Ports); then
+        exact_bindings=true
+    else
+        bindings=$(port_bindings "$old" HostConfig.PortBindings) || return 1
+    fi
+    bindings_include_services "$bindings" || return 1
+    launch_args=(--network "$network")
+    while IFS='|' read -r target host port; do
+        if ! port=$(normalize_port "$port"); then
+            echo "无法确定 $target 已分配的宿主机端口。请启动原容器后再重试升级。" >&2
+            return 1
+        fi
+        if [[ $host == *:* ]]; then host="[$host]"; fi
+        launch_args+=(-p "${host:+$host:}$port:$target")
+    done <<< "$bindings"
+    if [[ $policy == on-failure && $retries != 0 ]]; then policy="on-failure:$retries"; fi
+    launch_args+=(--restart "$policy")
     layout=$(upgrade_layout) || return 1
     if [[ $mode == repair ]]; then
         echo "将备份现有数据并重建未就绪的容器。"
@@ -203,7 +230,6 @@ upgrade() (
     upgrade_fs chown "$(id -u):$(id -g)" "$staging" || return 1
     if [[ $layout == mounted$'\n'* ]]; then printf '%s\n' "$layout" > "$staging/layout" || return 1; fi
     if [[ $mode == repair ]]; then touch "$staging/repair" || return 1; fi
-    if [[ $policy == on-failure && $retries != 0 ]]; then policy="on-failure:$retries"; fi
     printf '%s %s %s %s %s\n' "$old" "$fs_image" "$policy" "$running" "$token" > "$staging/state" || return 1
     sync -f "$staging" || return 1
     upgrade_move "$staging" "$journal" || return 1
@@ -230,8 +256,9 @@ upgrade() (
         upgrade_move "$journal/next" "$ZEROTIER_PATH" || return 1
     fi
     sync -f "$journal" || return 1
-    run_container "$new_image" || return 1
+    run_container "$new_image" "${launch_args[@]}" || return 1
     wait_ready "$CONTAINER_NAME" || return 1
+    verify_published_ports "$CONTAINER_NAME" "$bindings" "$exact_bindings" || return 1
     touch "$journal/committed" || return 1
     sync -f "$journal"
 )
