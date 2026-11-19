@@ -48,7 +48,7 @@
 
 ### 1. 准备服务器
 
-准备一台有**公网 IPv4 地址**的 Linux 服务器，安装 Docker 和 Git。部署脚本面向 Linux；镜像构建脚本面向 `linux/amd64` 和 `linux/arm64`。尚未安装 Docker 时，可参考 [Docker 官方安装文档](https://docs.docker.com/engine/install/)。
+准备一台有**公网 IPv4 或 IPv6 地址**的 Linux 服务器，安装 Docker 和 Git，并确保宿主机提供 `flock` 和 `findmnt`（util-linux）。镜像构建脚本面向 `linux/amd64` 和 `linux/arm64`。尚未安装 Docker 时，可参考 [Docker 官方安装文档](https://docs.docker.com/engine/install/)。
 
 在服务器防火墙和云平台安全组中放行实际使用的端口（安装时可按提示修改默认值）：
 
@@ -68,13 +68,18 @@ cd docker-zerotier-planet
 ./deploy.sh
 ```
 
-按提示选择 **1. 安装**，依次填写 ZeroTier、管理界面和文件下载端口，并选择自动获取或手动填写服务器公网 IP。
+首次部署选择 **1. 安装或重装（保留已有数据）**，依次填写 ZeroTier、管理界面和文件下载端口，并选择自动获取或手动填写服务器公网 IP。脚本直接调用 Docker，将配置和数据保存在当前目录的 `data/zerotier/`。
 
-部署脚本使用 `docker run` 创建容器；仓库没有自带的 Compose 配置文件。
+**安装中断或需要重装时，回到原项目目录，再选 1。** 脚本沿用已保存的 IP、端口和节点身份。新版容器停止时会尝试启动它，容器缺失时会从原数据重建。若旧版容器已停止或无法通过健康检查，脚本会使用升级备份流程恢复实例。要主动升级健康实例，请选 **3. 更新**。
 
-**已有部署不要直接选择重新安装：该流程会删除当前项目目录下的 `data/zerotier/`，请先备份，升级请选“更新”。**若镜像拉取失败，先确认 Docker 可以访问镜像仓库，不要直接覆盖服务器现有的 Docker 配置。
+默认使用 `xubiaolin/zerotier-planet:latest`。如果选中的默认镜像仍是旧版，菜单会从当前项目源码构建支持安全重试的版本。首次构建需要下载依赖并编译 ZeroTier，升级时这些工作在停服前完成。若镜像拉取失败，先检查 Docker 到镜像仓库的连接。
 
-请在项目目录运行脚本：数据路径按当前工作目录计算。
+也可以提前构建镜像，把部署主机上的镜像 ID 传给菜单。通过 `DOCKER_IMAGE` 指定的镜像须支持安全重试。新装选 **1**，从已有部署升级选 **3**。如在另一台主机构建，请使用与部署主机一致的架构，并先将镜像导入部署主机。
+
+```bash
+docker build -t zerotier-planet:local .
+DOCKER_IMAGE=$(docker image inspect --format '{{.Id}}' zerotier-planet:local) ./deploy.sh
+```
 
 部署后可检查容器和日志：
 
@@ -148,7 +153,7 @@ sudo zerotier-cli peers
 ### Android 与 iOS
 
 - **Android：**可参考支持自定义 Planet 的第三方客户端 [ZerotierFix](https://github.com/kaaass/ZerotierFix)，使用前请自行检查其版本兼容性及维护状态。
-- **iOS：**替换 `planet` 需要客户端或系统提供相应能力；可了解 [ZeroTieriOSFix](https://github.com/lemon4ex/ZeroTieriOSFix) 等非官方方案，其适用条件和风险由使用者自行评估。**WireGuard 是另一种协议，不能直接作为 ZeroTier 客户端加入本项目创建的网络。**
+- **iOS** 的官方 ZeroTier One 在 1.14.2 加入了自定义 Planet。该版本可将 `base64 -w0 ./data/zerotier/dist/planet` 在 Linux 上的输出粘贴到 App 的「设置 → Planet → 编辑」，保存后加入 Network ID，并在管理界面授权。1.16.0 的官方发行说明列出了通过链接或二维码导入 Planet 的功能，也有 iOS 用户报告设置入口消失或扫码后未出现导入提示。服务端升级到 1.16.2 后仍需核对手机上的客户端版本。[App Store 版本记录](https://apps.apple.com/us/app/zerotier-one/id1084101492) · [1.14.2 操作截图](https://github.com/xubiaolin/docker-zerotier-planet/issues/211) · [官方发行说明](https://docs.zerotier.com/changelog/) · [1.16.0 导入反馈](https://github.com/zerotier/ZeroTierOne/issues/2599)
 
 ## 运维与安全
 
@@ -160,16 +165,24 @@ sudo zerotier-cli peers
 | --- | --- |
 | `data/zerotier/dist/` | 导出的 `planet` / `moon` 文件 |
 | `data/zerotier/ztncui/` | 管理界面配置与登录数据 |
-| `data/zerotier/one/` | ZeroTier 身份与控制器数据 |
-| `data/zerotier/config/` | 生成 Planet 所需的配置和密钥 |
+| `data/zerotier/one/` | ZeroTier 节点身份、Planet 与 Moon 签名材料、控制器网络和成员数据 |
+| `data/zerotier/config/` | 公网 IP、端口与文件下载密钥 |
 
-**更新前先备份。**运行 `./deploy.sh` 并选择“更新”会保留已挂载的数据，但会重建容器；选择重新“安装”前要特别注意数据清理提示，不能把它当作无损升级。部署脚本在数据目录已有内容时不会自动重新生成 `planet` / `moon`；**只修改 IP 或端口环境变量，不会更新已生成的节点信息和客户端文件。**
+### 原地升级与故障恢复
+
+支持将 `data/`、`data/zerotier/` 链接到其他磁盘，也支持直接将磁盘挂载在 `data/zerotier/` 或表中的四个持久化目录。升级会在 `data/` 中备份完整数据树。回滚时请保持原来的挂载，脚本会核对磁盘并还原四个目录，然后启动旧容器。若四个目录分别指向外部路径，请在对应目录使用绑定挂载（bind mount）。请将挂载点设在表中目录本身，更深层的挂载会在停服前被检出。
+
+1. 在原项目目录运行 `./deploy.sh`，选择 **3. 更新**。默认会先拉取镜像，再与当前容器比较镜像 ID。如果有新版本，确认升级后会停止旧容器并备份整个 `data/zerotier/`。升级期间服务会短暂停止，磁盘需能容纳一份完整的数据副本。
+2. 脚本会检查 ZeroTier 本地控制接口、管理页面和带密钥的 `planet` 下载。新容器通过检查后，脚本删除旧容器，并输出升级前的数据备份路径，默认位于 `data/zerotier.backup.<标识>/data/`。备份中包含私钥。已接入的客户端继续使用原有的 `planet`、Network ID 和授权。
+3. 备份失败时，脚本会尝试重新启动旧容器。新容器启动或健康检查失败时，脚本会自动还原升级前的数据与旧容器。若升级进程中断，请在原项目目录重新运行 `./deploy.sh`，选择 **4. 查看信息**。脚本会先处理未完成的升级。
+
+安装重试时，若日志提示身份或签名材料缺失或互不匹配，请保留当前目录。若有完整备份，可停止容器，把当前数据目录移到一旁，再把同一次备份的完整目录恢复为 `data/zerotier/`，保留文件属主和权限。使用与备份配套的镜像启动服务。单独的 `dist/planet` 无法还原服务器的私钥、网络或成员授权。
 
 ### 保护管理界面和下载入口
 
 - 首次登录立即修改默认密码；管理界面默认使用 `http://`，`3443` 只是端口号，**不表示已启用 TLS**。
 - 使用防火墙限制管理端口的访问来源；对外提供管理界面时，建议由 Nginx 等反向代理终止 HTTPS。
-- 下载链接和相关密钥不要公开传播。文件服务使用 `SECRET_KEY` 作为下载密钥；如果没有固定该值，容器重启后会生成新密钥，旧下载链接随之失效。镜像中的 `FILE_KEY` **不是**文件服务实际读取的变量。
+- 下载链接和相关密钥应按凭据保管。新版文件服务复用 `data/zerotier/config/file_server.key`。首次生成时使用 `SECRET_KEY`，未设置则生成随机密钥。回滚到旧版镜像后，若旧链接失效，可在菜单 **4. 查看信息** 获取当前下载地址。
 
 以下示例假设 Nginx 与容器运行在同一台主机，证书已自行准备，且 `3443` 是实际映射的管理端口。还应通过防火墙限制对 `3443` 的直接公网访问：
 
@@ -215,7 +228,7 @@ services:
       - "3000:3000/tcp"
     environment:
       IP_ADDR4: "203.0.113.10" # 替换为服务器公网 IPv4
-      IP_ADDR6: "" # 留空时容器仍会尝试自动获取公网 IPv6
+      IP_ADDR6: "" # 双栈部署时填写公网 IPv6
       ZT_PORT: "9994"
       API_PORT: "3443"
       FILE_SERVER_PORT: "3000"
@@ -227,7 +240,7 @@ services:
       - ./data/zerotier/config:/app/config
 ```
 
-> 示例端口与容器环境变量保持一致；如果修改监听端口，请同步修改映射和防火墙规则。**不要把填有真实公网 IP、下载密钥或私密配置的 Compose 文件提交到公开仓库。**手动 Compose 部署不提供 `deploy.sh` 的交互流程，遇到问题请检查 `docker logs myztplanet`。
+> 示例端口与容器环境变量保持一致；如果修改监听端口，请同步修改映射和防火墙规则。**不要把填有真实公网 IP、下载密钥或私密配置的 Compose 文件提交到公开仓库。**手动用 Compose 更新容器时，请自行停服并备份整个数据目录。自动备份和回滚由 `./deploy.sh` 的“更新”菜单执行。
 
 ### 卸载
 
@@ -253,7 +266,7 @@ services:
 
 ### 服务器公网 IP 或通信端口变了怎么办？
 
-备份整个 `data/zerotier/` 后重新规划部署，并生成与新地址相符的 `planet` 文件，然后重新分发给客户端。已有数据非空时，**仅重启容器或改环境变量不会重生成文件**；重新安装可能删除旧数据和身份，操作前务必备份。
+重装和原地升级都会沿用已有节点地址。迁移公网 IP 或 ZeroTier 通信端口前，请先备份整个 `data/zerotier/`。新地址需要写入节点端点配置，并用原签名材料生成与新端点匹配的 `planet` 和 `moon`，再将更新的文件分发给使用它们的客户端。
 
 ### 忘记管理密码怎么办？
 

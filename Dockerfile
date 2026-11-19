@@ -1,85 +1,41 @@
-FROM alpine:3.14 as builder
+FROM node:22-bookworm-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates git python3 && rm -rf /var/lib/apt/lists/*
 
-ENV TZ=Asia/Shanghai
-ARG TAG=actions
-ENV TAG=${TAG}
+FROM rust:1.94-slim-bookworm AS zerotier
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates git libssl-dev pkg-config && rm -rf /var/lib/apt/lists/*
+ENV CARGO_BUILD_JOBS=3 CARGO_NET_GIT_FETCH_WITH_CLI=true
+ARG TAG=1.16.2
+WORKDIR /build/ZeroTierOne
+RUN git clone --depth=1 --branch "${TAG}" https://github.com/zerotier/ZeroTierOne.git . \
+    && make -j2 ZT_NONFREE=1
+COPY patch/mkworld_custom.cpp patch/mkworld.mk ./
+RUN make -f Makefile -f mkworld.mk ZT_NONFREE=1 mkworld \
+    && strip mkworld zerotier-one
 
+FROM builder AS ztncui
+WORKDIR /build
+RUN git clone https://github.com/key-networks/ztncui.git \
+    && cd ztncui && git checkout --detach 1b2284864de48d2dcae22582fff122fe24909c3d \
+    && cd src && npm pkg set dependencies.argon2=0.44.0 \
+    && npm install --omit=dev --no-audit --no-fund \
+    && node -e "require('argon2')"
+
+FROM node:22-bookworm-slim
+LABEL org.zerotier-planet.retry-safe="1"
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates util-linux \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=zerotier /build/ZeroTierOne/zerotier-one /usr/sbin/
+COPY --from=zerotier /build/ZeroTierOne/mkworld /usr/local/bin/
+RUN ln -s zerotier-one /usr/sbin/zerotier-idtool && ln -s zerotier-one /usr/sbin/zerotier-cli
+COPY --from=ztncui /build/ztncui/src /opt/ztncui/src
+RUN mv /opt/ztncui/src/etc /opt/ztncui/etc.defaults \
+    && ln -s /app/ztncui/src/etc /opt/ztncui/src/etc \
+    && ln -s /app/ztncui/src/.env /opt/ztncui/src/.env
 WORKDIR /app
-ADD ./patch/entrypoint.sh /app/entrypoint.sh
-ADD ./patch/http_server.js /app/http_server.js
-ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
-
-# init tool
-RUN set -x\
-    && apk update\
-    && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake go \
-    && echo "env prepare success!"
-
-# make zerotier-one
-RUN set -x\
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
-    && source "$HOME/.cargo/env"\
-    && git clone https://github.com/zerotier/ZeroTierOne.git\
-    && cd ZeroTierOne\
-    && git checkout ${TAG}\
-    && echo "切换到tag:${TAG}"\
-    && make ZT_SYMLINK=1 \
-    && make -j\
-    && make install\
-    && echo "make success!"\
-    && zerotier-one -d || true\
-    && sleep 5s\
-    && (ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 || true)\
-    && echo "zerotier-one init success!"\
-    && cd /app/ZeroTierOne/attic/world \
-    && cp /app/patch/mkworld_custom.cpp .\
-    && mv mkworld.cpp mkworld.cpp.bak \
-    && mv mkworld_custom.cpp mkworld.cpp \
-    && sh build.sh \
-    && mkdir -p /var/lib/zerotier-one \
-    && mv mkworld /var/lib/zerotier-one\
-    && echo "mkworld build success!"
-
-
-
-#make ztncui 
-RUN set -x \
-    && mkdir /app -p \
-    &&  cd /app \
-    && git clone --progress https://github.com/key-networks/ztncui.git\
-    && cd /app/ztncui/src \
-    && npm config set registry https://registry.npmmirror.com\
-    && npm install -g node-gyp\
-    && npm install 
-
-FROM alpine:3.14
-
-WORKDIR /app
-
-ENV IP_ADDR4=''
-ENV IP_ADDR6=''
-
-ENV ZT_PORT=9994
-ENV API_PORT=3443
-ENV FILE_SERVER_PORT=3000
-
-ENV GH_MIRROR="https://mirror.ghproxy.com/"
-ENV FILE_KEY=''
-ENV TZ=Asia/Shanghai
-
-COPY --from=builder /app/ztncui /bak/ztncui
-COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
-
-COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
-COPY --from=builder /app/http_server.js /app/http_server.js
-
-RUN set -x \
-    && apk update \
-    && apk add --no-cache npm curl jq openssl\
-    && mkdir /app/config -p 
-
-
-VOLUME [ "/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
-
-CMD ["/bin/sh","/app/entrypoint.sh"]
+COPY patch/*.js patch/*.sh ./
+VOLUME ["/app/dist","/app/ztncui","/var/lib/zerotier-one","/app/config"]
+HEALTHCHECK --interval=10s --timeout=8s --start-period=30s --retries=3 \
+    CMD ["/bin/sh", "/app/healthcheck.sh"]
+CMD ["flock", "-n", "-F", "/var/lib/zerotier-one", "/bin/bash", "/app/entrypoint.sh"]

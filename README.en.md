@@ -48,7 +48,7 @@ WeChat official account:
 
 ### 1. Prepare a Server
 
-Prepare a Linux server with a **public IPv4 address**, and install Docker and Git. The deployment script targets Linux; the image build script targets `linux/amd64` and `linux/arm64`. If you have not installed Docker, consult the [official Docker installation guide](https://docs.docker.com/engine/install/).
+Prepare a Linux server with a **public IPv4 or IPv6 address**. Install Docker and Git, and make sure the host has `flock` and `findmnt` (util-linux). The image build script targets `linux/amd64` and `linux/arm64`. If you have not installed Docker, consult the [official Docker installation guide](https://docs.docker.com/engine/install/).
 
 Allow the ports you actually use through both the server firewall and your cloud provider's security group. You can change the default ports when the installer prompts you:
 
@@ -68,13 +68,18 @@ cd docker-zerotier-planet
 ./deploy.sh
 ```
 
-Select **1. Install** and enter the ZeroTier, management interface, and file download ports. Then choose whether to detect your server's public IP automatically or enter it manually.
+For a first installation, select **1. Install or reinstall (keep existing data)** and enter the ZeroTier, management interface, and file download ports. Then choose whether to detect your server's public IP automatically or enter it manually. The script calls Docker directly and stores configuration and data under `data/zerotier/` in the current directory.
 
-The deployment script creates a container with `docker run`; this repository does not include a Compose configuration file.
+**To retry an interrupted installation or reinstall, return to the original project directory and select 1 again.** The script reuses the saved IP addresses, ports, and node identity. It tries to start a stopped container running the new image and recreates a missing container from the original data. If a legacy container is stopped or fails its health check, the script uses the upgrade backup procedure to recover the instance. To upgrade a healthy instance, select **3. Update**.
 
-**Do not choose Install again on an existing deployment without a backup: it deletes `data/zerotier/` under the current project directory. Choose Update for an upgrade.** If the image cannot be pulled, check Docker's access to the image registry before replacing any existing Docker configuration on your server.
+The default image is `xubiaolin/zerotier-planet:latest`. If the selected default image is an older version, the menu builds a version that supports safe installation retries from the current source tree. The first build downloads dependencies and compiles ZeroTier. During an upgrade, this happens before the old service stops. If an image pull fails, check Docker's connection to the image registry.
 
-Run the script from the project directory: its data paths are based on your current working directory.
+You can also build ahead of time and pass the image ID on the deployment host to the menu. An image selected with `DOCKER_IMAGE` must support safe installation retries. Select **1** for a fresh install or **3** to upgrade an existing deployment. If building on another host, use the deployment host's architecture and load the image onto the deployment host first.
+
+```bash
+docker build -t zerotier-planet:local .
+DOCKER_IMAGE=$(docker image inspect --format '{{.Id}}' zerotier-planet:local) ./deploy.sh
+```
 
 After deployment, check the container and its logs:
 
@@ -148,7 +153,7 @@ First confirm that your ZeroTier plugin supports a custom `planet` file and iden
 ### Android and iOS
 
 - **Android:** You can refer to the third-party client [ZerotierFix](https://github.com/kaaass/ZerotierFix), which supports custom Planet files. Check its version compatibility and maintenance status before use.
-- **iOS:** Replacing `planet` requires support from the client or the operating system. You can look into unofficial solutions such as [ZeroTieriOSFix](https://github.com/lemon4ex/ZeroTieriOSFix); assess their requirements and risks yourself. **WireGuard is a different protocol and cannot join a network created by this project as a ZeroTier client.**
+- **iOS** gained custom Planet support in the official ZeroTier One app in version 1.14.2. On Linux, run `base64 -w0 ./data/zerotier/dist/planet`. In the 1.14.2 app, open Settings → Planet → Edit, paste the output, and save. Join the Network ID and authorize the device in the management UI. The 1.16.0 release notes describe importing a Planet via URL or QR code. Some iOS users report a missing settings button or a QR code that opens the app without an import prompt. Check the app version even when the server runs 1.16.2. [App Store version history](https://apps.apple.com/us/app/zerotier-one/id1084101492) · [1.14.2 instructions and screenshots](https://github.com/xubiaolin/docker-zerotier-planet/issues/211) · [ZeroTier changelog](https://docs.zerotier.com/changelog/) · [1.16.0 import reports](https://github.com/zerotier/ZeroTierOne/issues/2599)
 
 ## Operations and Security
 
@@ -160,16 +165,24 @@ The deployment script mounts the following host directories into the container. 
 | --- | --- |
 | `data/zerotier/dist/` | Exported `planet` / `moon` files |
 | `data/zerotier/ztncui/` | Management interface configuration and login data |
-| `data/zerotier/one/` | ZeroTier identity and controller data |
-| `data/zerotier/config/` | Configuration and keys used to generate the Planet |
+| `data/zerotier/one/` | ZeroTier node identity, Planet and Moon signing keys, and controller network and member data |
+| `data/zerotier/config/` | Public IP addresses, ports, and the file download key |
 
-**Back up before updating.** Choosing Update in `./deploy.sh` retains mounted data but recreates the container. Watch for the data-deletion warning before choosing Install again; it is not a lossless upgrade. When the data directory is nonempty, the deployment does not automatically regenerate `planet` / `moon`: **changing an IP address or port environment variable alone will not update the generated node information or client files.**
+### In-Place Upgrades and Recovery
+
+You can link `data/` or `data/zerotier/` to another disk, or mount storage directly at `data/zerotier/` or any of the four persistent directories in the table. Upgrades back up the entire data tree under `data/`. Keep the original mounts available during recovery. The script verifies the mounted directories and restores their contents before starting the old container. Use bind mounts for individual directories stored elsewhere. Place each mount at the directory listed in the table. The script checks for deeper mounts before stopping the service.
+
+1. Run `./deploy.sh` from the original project directory and select **3. Update**. By default the script pulls the image and compares its ID with the running version. If a new version is available and you confirm the upgrade, it stops the old container and backs up all of `data/zerotier/`. Allow for downtime and enough disk space for a full copy of the data.
+2. The health check probes the local ZeroTier control interface, the management page, and a `planet` download with the saved key. Once the new container passes, the script removes the old container and prints the backup path. By default, the pre-upgrade data is in `data/zerotier.backup.<id>/data/`. The backup contains private keys. Existing clients keep their `planet` file, Network ID, and authorization.
+3. If the backup fails, the script tries to restart the old container. If the new container fails to start or pass its health check, the script automatically restores the pre-upgrade data and the old container. If the upgrade process is interrupted, run `./deploy.sh` again from the original project directory and select **4. View Information**. The script handles the interrupted upgrade first.
+
+If an installation retry reports missing or conflicting identity or signing keys, keep the current data for inspection. If you have a complete backup, stop the container and move the current data directory aside. Restore the full directory from that backup to `data/zerotier/`, preserving file ownership and permissions, and start the service with the image that matches the backup. The exported `dist/planet` file alone cannot restore the server's private keys, networks, or member authorizations.
 
 ### Protect the Management and Download Endpoints
 
 - Change the default password immediately after the first login. The management interface uses `http://` by default; port `3443` **does not imply TLS**.
 - Restrict access to the management port with a firewall. If exposing the interface externally, consider terminating HTTPS with a reverse proxy such as Nginx.
-- Do not share download links or keys publicly. The file service reads `SECRET_KEY` for its download key. If it is not fixed, the container generates a new key after a restart and old download links stop working. The image's `FILE_KEY` variable is **not** read by the file service.
+- Treat download links and keys as credentials. The updated file service reuses `data/zerotier/config/file_server.key`. When first creating the file, it uses `SECRET_KEY` if set or generates a random key. If a download link stops working after a rollback to an older image, select **4. View Information** to get the current URL.
 
 The following example assumes Nginx and the container run on the same host, you already have a certificate, and `3443` is the management port you mapped. Also restrict direct public access to `3443` with a firewall:
 
@@ -215,7 +228,7 @@ services:
       - "3000:3000/tcp"
     environment:
       IP_ADDR4: "203.0.113.10" # Replace with your server's public IPv4 address
-      IP_ADDR6: "" # If empty, the container still attempts to detect a public IPv6 address
+      IP_ADDR6: "" # Set the public IPv6 address for a dual-stack deployment
       ZT_PORT: "9994"
       API_PORT: "3443"
       FILE_SERVER_PORT: "3000"
@@ -227,7 +240,7 @@ services:
       - ./data/zerotier/config:/app/config
 ```
 
-> Keep the example's port mappings and container environment variables in sync. If you change a listening port, update its mapping and your firewall rules too. **Do not commit a Compose file containing your real public IP address, download key, or private configuration to a public repository.** Manual Compose deployment does not provide the `deploy.sh` interactive workflow; check `docker logs myztplanet` when troubleshooting.
+> Keep the example's port mappings and container environment variables in sync. If you change a listening port, update its mapping and your firewall rules too. **Do not commit a Compose file containing your real public IP address, download key, or private configuration to a public repository.** When updating manually with Compose, stop the service and back up the full data directory yourself. The Update option in `./deploy.sh` handles automatic backups and rollback.
 
 ### Uninstall
 
@@ -253,7 +266,7 @@ After a client replaces its `planet` file with the one generated by this project
 
 ### What if the server's public IP or communication port changes?
 
-Back up all of `data/zerotier/`, plan the redeployment, generate a `planet` file matching the new address, and redistribute it to clients. If the existing data directory is nonempty, **restarting the container or changing an environment variable alone will not regenerate the file**. Reinstalling may delete the old data and identity, so back up first.
+Reinstalls and in-place upgrades reuse the existing node address. Before moving to a different public IP or ZeroTier port, back up all of `data/zerotier/`. Update the node's endpoint configuration, use the original signing keys to generate `planet` and `moon` files for the new endpoint, and distribute the updated files to the clients that use them.
 
 ### What if I forget the management password?
 

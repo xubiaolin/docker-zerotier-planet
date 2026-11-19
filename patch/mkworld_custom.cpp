@@ -16,217 +16,207 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /*
-  * This utility makes the World from the configuration specified below.
-  * It probably won't be much use to anyone outside ZeroTier, Inc. except
-  * for testing and experimentation purposes.
-  *
-  * If you want to make your own World you must edit this file.
-  *
-  * When run, it expects two files in the current directory:
-  *
-  * previous.c25519 - key pair to sign this world (key from previous world)
-  * current.c25519 - key pair whose public key should be embedded in this world
-  *
-  * If these files do not exist, they are both created with the same key pair
-  * and a self-signed initial World is born.
-  */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <nlohmann/json.hpp>
+// Read and write the same world and key formats as the original mkworld.
+#include <cstdio>
+#include <cstring>
+#include <stdexcept>
 #include <string>
 #include <vector>
-#include <algorithm>
+#include <nlohmann/json.hpp>
 
-#include <node/Constants.hpp>
-#include <node/World.hpp>
-#include <node/C25519.hpp>
-#include <node/Identity.hpp>
-#include <node/InetAddress.hpp>
-#include <osdep/OSUtils.hpp>
+#include "node/World.hpp"
+#include "osdep/OSUtils.hpp"
 
 using namespace ZeroTier;
 using json = nlohmann::json;
 
-void printHelp() {
-	printf("Usage: mkworld [options]\n");
-	printf("Options:\n");
-	printf("  -h, --help          Display this help message\n");
-	printf("  -j, --json2bin      Convert from JSON file to world.bin\n");
-	printf("  -b, --bin2json      Convert from world.bin to JSON format\n");
-}
+#if __has_include("node/ECC.hpp")
+using WorldKey = ECC;
+#else
+using WorldKey = C25519;
+#endif
 
-int jsonToBinary() {
-	std::string previous, current;
-	if ((!OSUtils::readFile("previous.c25519", previous)) || (!OSUtils::readFile("current.c25519", current))) {
-		C25519::Pair np(C25519::generate());
-		previous = std::string();
-		previous.append((const char*)np.pub.data, ZT_C25519_PUBLIC_KEY_LEN);
-		previous.append((const char*)np.priv.data, ZT_C25519_PRIVATE_KEY_LEN);
-		current = previous;
-		OSUtils::writeFile("previous.c25519", previous);
-		OSUtils::writeFile("current.c25519", current);
-		fprintf(stderr, "INFO: created initial world keys: previous.c25519 and current.c25519 (both initially the same)" ZT_EOL_S);
-	}
-
-	if ((previous.length() != (ZT_C25519_PUBLIC_KEY_LEN + ZT_C25519_PRIVATE_KEY_LEN)) || (current.length() != (ZT_C25519_PUBLIC_KEY_LEN + ZT_C25519_PRIVATE_KEY_LEN))) {
-		fprintf(stderr, "FATAL: previous.c25519 or current.c25519 empty or invalid" ZT_EOL_S);
-		return 1;
-	}
-	C25519::Pair previousKP;
-	memcpy(previousKP.pub.data, previous.data(), ZT_C25519_PUBLIC_KEY_LEN);
-	memcpy(previousKP.priv.data, previous.data() + ZT_C25519_PUBLIC_KEY_LEN, ZT_C25519_PRIVATE_KEY_LEN);
-	C25519::Pair currentKP;
-	memcpy(currentKP.pub.data, current.data(), ZT_C25519_PUBLIC_KEY_LEN);
-	memcpy(currentKP.priv.data, current.data() + ZT_C25519_PUBLIC_KEY_LEN, ZT_C25519_PRIVATE_KEY_LEN);
-
-	// =========================================================================
-	// EDIT BELOW HERE
-
-	std::vector<World::Root> roots;
-
-	const uint64_t id = ZT_WORLD_ID_EARTH;
-	const uint64_t ts = 1567191349589ULL; // August 30th, 2019
-
-	std::string fileContent;
-	if (!OSUtils::readFile("moon.json", fileContent)) {
-		fprintf(stderr, "Failed to open config file." ZT_EOL_S);
-		return 1;
-	}
-
-	// 解析JSON数据
-	json config = json::parse(fileContent);
-
-
-	for (auto& root : config["roots"]) {
-		roots.push_back(World::Root());
-		roots.back().identity = Identity(root["identity"].get<std::string>().c_str());
-		for (auto& endpoint : root["stableEndpoints"]) {
-			roots.back().stableEndpoints.push_back(InetAddress(endpoint.get<std::string>().c_str()));
-		}
-	}
-
-	fprintf(stderr, "INFO: generating and signing id==%llu ts==%llu" ZT_EOL_S, (unsigned long long)id, (unsigned long long)ts);
-
-	World nw = World::make(World::TYPE_PLANET, id, ts, currentKP.pub, roots, previousKP);
-
-	Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> outtmp;
-	nw.serialize(outtmp, false);
-	World testw;
-	testw.deserialize(outtmp, 0);
-	if (testw != nw) {
-		fprintf(stderr, "FATAL: serialization test failed!" ZT_EOL_S);
-		return 1;
-	}
-
-	OSUtils::writeFile("world.bin", std::string((const char*)outtmp.data(), outtmp.size()));
-	fprintf(stderr, "INFO: world.bin written with %u bytes of binary world data." ZT_EOL_S, outtmp.size());
-
-	fprintf(stdout, ZT_EOL_S);
-	fprintf(stdout, "#define ZT_DEFAULT_WORLD_LENGTH %u" ZT_EOL_S, outtmp.size());
-	fprintf(stdout, "static const unsigned char ZT_DEFAULT_WORLD[ZT_DEFAULT_WORLD_LENGTH] = {");
-	for (unsigned int i = 0; i < outtmp.size(); ++i) {
-		const unsigned char* d = (const unsigned char*)outtmp.data();
-		if (i > 0)
-			fprintf(stdout, ",");
-		fprintf(stdout, "0x%.2x", (unsigned int)d[i]);
-	}
-	fprintf(stdout, "};" ZT_EOL_S);
-	return 0;
-}
-
-void binaryToJson() {
-	// Read world.bin file into memory
-	std::string binContent;
-	if (!OSUtils::readFile("world.bin", binContent)) {
-		fprintf(stderr, "Failed to open world.bin file." ZT_EOL_S);
-		return;
-	}
-
-	// Deserialize the binary data into a World object
-	Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> binBuffer(binContent.data(), binContent.size());
-	World world;
-	if (!world.deserialize(binBuffer, 0)) {
-		fprintf(stderr, "Failed to deserialize world.bin content." ZT_EOL_S);
-		return;
-	}
-
-	// Create a JSON object to store the world data
-	json worldJson;
-
-
-	// Add roots array to the JSON object
-	json rootsJson;
-	for (const auto& root : world.roots()) {
-		json rootJson;
-
-		// Add identity to the root JSON object
-		char identityStr[ZT_IDENTITY_STRING_BUFFER_LENGTH];
-		root.identity.toString(true, identityStr); // Include private key
-		rootJson["identity"] = identityStr;
-
-		// Add stableEndpoints array to the root JSON object
-		json stableEndpointsJson;
-		for (const auto& endpoint : root.stableEndpoints) {
-			char ipStr[64];
-			endpoint.toString(ipStr);
-			stableEndpointsJson.push_back(ipStr);
-		}
-		rootJson["stableEndpoints"] = stableEndpointsJson;
-
-		rootsJson.push_back(rootJson);
-	}
-	worldJson["roots"] = rootsJson;
-	std::string jsonStr = worldJson.dump(4);
-	printf("World JSON:\n%s\n", jsonStr.c_str());
-	if (!OSUtils::writeFile("config.json", jsonStr.c_str(), jsonStr.size())) {
-		fprintf(stderr, "Failed to write JSON data to config.json." ZT_EOL_S);
-	}
-	else {
-		printf("JSON data successfully written to config.json." ZT_EOL_S);
-	}
-}
-
-
-int main(int argc, char** argv)
+static std::string readFile(const char *name)
 {
-	bool json2bin = false;
-	bool bin2json = false;
+    std::string data;
+    if (!OSUtils::readFile(name, data) || data.empty())
+        throw std::runtime_error(std::string("Missing or empty file: ") + name);
+    return data;
+}
 
-	for (int i = 1; i < argc; ++i) {
-		std::string arg = argv[i];
-		if (arg == "-h" || arg == "--help") {
-			printHelp();
-			return 0;
-		}
-		else if (arg == "-j" || arg == "--json2bin") {
-			json2bin = true;
-		}
-		else if (arg == "-b" || arg == "--bin2json") {
-			bin2json = true;
-		}
-	}
+static void writeFile(const char *name, const std::string &data)
+{
+    if (!OSUtils::writeFile(name, data))
+        throw std::runtime_error(std::string("Cannot write ") + name);
+}
 
-	if (!(json2bin || bin2json)) {
-		// Default behavior: convert from JSON to world.bin
-		json2bin = true;
-	}
+static void validatePair(const WorldKey::Pair &key, const char *name)
+{
+    const auto challenge = WorldKey::generate();
+    unsigned char fromPrivate[32], fromPublic[32];
+    WorldKey::agree(key.priv, challenge.pub, fromPrivate, sizeof(fromPrivate));
+    WorldKey::agree(challenge.priv, key.pub, fromPublic, sizeof(fromPublic));
+    const auto signature = WorldKey::sign(key, fromPrivate, sizeof(fromPrivate));
+    if (memcmp(fromPrivate, fromPublic, sizeof(fromPrivate)) ||
+        !WorldKey::verify(key.pub, fromPrivate, sizeof(fromPrivate), signature))
+        throw std::runtime_error(std::string("Invalid public/private key pair: ") + name);
+}
 
-	if (json2bin && bin2json) {
-		printf("Error: Cannot specify both JSON to binary and binary to JSON conversion options.\n");
-		printHelp();
-		return 1;
-	}
+static WorldKey::Pair readKey(const char *name)
+{
+    const std::string data = readFile(name);
+    WorldKey::Pair key;
+    if (data.size() != sizeof(key.pub.data) + sizeof(key.priv.data))
+        throw std::runtime_error(std::string("Invalid key length: ") + name);
+    memcpy(key.pub.data, data.data(), sizeof(key.pub.data));
+    memcpy(key.priv.data, data.data() + sizeof(key.pub.data), sizeof(key.priv.data));
+    validatePair(key, name);
+    return key;
+}
 
-	if (json2bin) {
-		jsonToBinary();
-	}
-	else if (bin2json) {
-		binaryToJson();
-	}
+static void newKeys()
+{
+    if (OSUtils::fileExists("previous.c25519", false) || OSUtils::fileExists("current.c25519", false))
+        throw std::runtime_error("World signing key already exists");
+    const WorldKey::Pair key = WorldKey::generate();
+    std::string data(reinterpret_cast<const char *>(key.pub.data), sizeof(key.pub.data));
+    data.append(reinterpret_cast<const char *>(key.priv.data), sizeof(key.priv.data));
+    writeFile("previous.c25519", data);
+    writeFile("current.c25519", data);
+}
 
-	return 0;
+static void generate()
+{
+    const auto previous = readKey("previous.c25519");
+    const auto current = readKey("current.c25519");
+    const json config = json::parse(readFile("moon.json"));
+    std::vector<World::Root> roots;
+    for (const auto &r : config.at("roots")) {
+        World::Root root;
+        root.identity = Identity(r.at("identity").get<std::string>().c_str());
+        if (!root.identity || root.identity.hasPrivate())
+            throw std::runtime_error("Invalid root public identity");
+        for (const auto &ep : r.at("stableEndpoints"))
+            root.stableEndpoints.emplace_back(ep.get<std::string>().c_str());
+        if (root.stableEndpoints.empty())
+            throw std::runtime_error("Missing stable endpoint");
+        roots.push_back(root);
+    }
+    if (roots.empty())
+        throw std::runtime_error("Missing root");
+    // Preserve the timestamp, root order and signing keys used by legacy installations.
+    World world = World::make(World::TYPE_PLANET, ZT_WORLD_ID_EARTH, 1567191349589ULL,
+                              current.pub, roots, previous);
+    Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> bytes;
+    world.serialize(bytes, true);
+    if (!WorldKey::verify(previous.pub, bytes.data(), bytes.size(), world.signature()))
+        throw std::runtime_error("Invalid previous signing key pair");
+    Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> serialized;
+    world.serialize(serialized);
+    writeFile("world.bin", std::string(reinterpret_cast<const char *>(serialized.data()), serialized.size()));
+}
+
+static World readWorld(const char *path)
+{
+    const auto data = readFile(path);
+    Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> bytes(data.data(), data.size());
+    World world;
+    if (world.deserialize(bytes, 0) != data.size() || !world)
+        throw std::runtime_error("Invalid world file");
+    return world;
+}
+
+static void verifyChain(const World &world, const WorldKey::Public &signer,
+                        const WorldKey::Public &successor, bool requirePublishedKeys)
+{
+    const auto &next = world.updatesMustBeSignedBy();
+    Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> bytes;
+    world.serialize(bytes, true);
+    const bool signedBySigner = WorldKey::verify(signer, bytes.data(), bytes.size(), world.signature());
+    const bool trustsSuccessor = !memcmp(next.data, successor.data, sizeof(next.data));
+    if (signedBySigner && trustsSuccessor)
+        return;
+    // A rotation can be staged before it is published. The existing world's
+    // authorized next signer must be the signing key in the new configuration.
+    const bool staged = memcmp(signer.data, successor.data, sizeof(next.data)) &&
+                        !memcmp(next.data, signer.data, sizeof(next.data));
+    if (!requirePublishedKeys && staged)
+        return;
+    throw std::runtime_error("World signature or successor key does not match signing material");
+}
+
+static void verifyWorldKeys(const char *path, bool restoringCopy)
+{
+    const World world = readWorld(path);
+    if (world.type() != World::TYPE_PLANET || world.id() != ZT_WORLD_ID_EARTH)
+        throw std::runtime_error("Expected an Earth Planet");
+    verifyChain(world, readKey("previous.c25519").pub, readKey("current.c25519").pub, restoringCopy);
+}
+
+template <size_t Size>
+static void readHexKey(const json &config, const char *name, unsigned char (&key)[Size])
+{
+    const auto hex = config.at(name).get<std::string>();
+    if (hex.size() != Size * 2 || Utils::unhex(hex.c_str(), key, Size) != Size)
+        throw std::runtime_error(std::string("Invalid Moon key: ") + name);
+}
+
+static void verifyMoon(const char *path, bool generated)
+{
+    const World world = readWorld(path);
+    if (world.type() != World::TYPE_MOON)
+        throw std::runtime_error("Expected a Moon");
+    const auto config = json::parse(readFile("moon.json"));
+    WorldKey::Pair signing;
+    WorldKey::Public successor;
+    readHexKey(config, "signingKey", signing.pub.data);
+    readHexKey(config, "signingKey_SECRET", signing.priv.data);
+    readHexKey(config, "updatesMustBeSignedBy", successor.data);
+    validatePair(signing, "moon.json");
+    verifyChain(world, signing.pub, successor, generated);
+}
+
+static json inspect(const char *path)
+{
+    const World world = readWorld(path);
+    json roots = json::array();
+    for (const auto &root : world.roots()) {
+        char identity[ZT_IDENTITY_STRING_BUFFER_LENGTH];
+        json endpoints = json::array();
+        for (const auto &ep : root.stableEndpoints) {
+            char address[64];
+            endpoints.push_back(ep.toString(address));
+        }
+        roots.push_back({{"identity", root.identity.toString(false, identity)}, {"stableEndpoints", endpoints}});
+    }
+    return {{"worldType", world.type() == World::TYPE_PLANET ? "planet" : "moon"},
+            {"id", world.id()}, {"roots", roots}};
+}
+
+int main(int argc, char **argv)
+{
+    try {
+        if (argc == 2 && !strcmp(argv[1], "--new-keys")) {
+            newKeys();
+        } else if (argc == 3 && (!strcmp(argv[1], "--verify-keys") || !strcmp(argv[1], "--verify-key-copy"))) {
+            verifyWorldKeys(argv[2], !strcmp(argv[1], "--verify-key-copy"));
+        } else if (argc == 3 && (!strcmp(argv[1], "--verify-moon") || !strcmp(argv[1], "--verify-new-moon"))) {
+            verifyMoon(argv[2], !strcmp(argv[1], "--verify-new-moon"));
+        } else if (argc == 3 && !strcmp(argv[1], "--inspect")) {
+            puts(inspect(argv[2]).dump().c_str());
+        } else if (argc == 1 || (argc == 2 && (!strcmp(argv[1], "-j") || !strcmp(argv[1], "--json2bin")))) {
+            generate();
+        } else if (argc == 2 && (!strcmp(argv[1], "-b") || !strcmp(argv[1], "--bin2json"))) {
+            writeFile("config.json", inspect("world.bin").dump(4));
+        } else {
+            fprintf(stderr, "Usage: mkworld [--new-keys | --inspect FILE | --verify-keys FILE | --verify-key-copy FILE | --verify-moon FILE | --verify-new-moon FILE | --json2bin | --bin2json]\n");
+            return 1;
+        }
+        return 0;
+    } catch (const std::exception &error) {
+        fprintf(stderr, "mkworld: %s\n", error.what());
+    } catch (...) {
+        fprintf(stderr, "mkworld: invalid world data\n");
+    }
+    return 1;
 }
